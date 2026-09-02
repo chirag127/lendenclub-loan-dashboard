@@ -75,7 +75,7 @@ No pandas/openpyxl needed — the parser reads the xlsx directly with `zipfile` 
 ## Notes
 
 - **Privacy:** the lender's registered email and mobile number from the report are intentionally **not** included in this public dataset.
-- Static site, 100% client-side. Charts load from the ECharts CDN; the page works with no build step.
+- Static site, 100% client-side with **zero runtime CDN dependency**: ECharts (Apache-2.0) is vendored in `assets/echarts.min.js` and the data ships as embedded JS globals, so the page works offline, from `file://`, or behind strict networks.
 
 ---
 
