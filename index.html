@@ -8,6 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💚</text></svg>">
 <link rel="stylesheet" href="assets/styles.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>window.addEventListener("error", function (e) { var el = e.target; if (el && el.tagName === "SCRIPT" && el.src.indexOf("echarts") > -1) { var s = document.createElement("script"); s.src = "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"; document.head.appendChild(s); } }, true);</script>
 </head>
 <body>
 
@@ -81,6 +82,8 @@
   <p class="muted">Personal contact details (email/mobile) are intentionally excluded from this public dataset.</p>
 </footer>
 
+<script src="data/summary.js"></script>
+<script src="data/loans.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

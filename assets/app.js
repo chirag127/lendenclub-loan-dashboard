@@ -837,24 +837,63 @@ function renderTable() {
     </tr>`).join("") + (rows.length > 2000 ? `<tr><td colspan="12" class="muted">Showing first 2,000 of ${fmt.format(rows.length)} — narrow the search to see more.</td></tr>` : "");
 }
 
+/* ---------------- chart library loading (CDN fallback chain) ---------------- */
+const ECHARTS_CDNS = [
+  "https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js",
+  "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js",
+];
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => { s.remove(); reject(new Error("Failed to load " + src)); };
+    document.head.appendChild(s);
+  });
+}
+async function ensureECharts() {
+  if (window.echarts) return;
+  for (const cdn of ECHARTS_CDNS) {
+    try { await loadScript(cdn); if (window.echarts) return; } catch (e) { /* try next CDN */ }
+  }
+  throw new Error("Could not load the chart library from any CDN.");
+}
+
+function showError(msg) {
+  const box = document.createElement("div");
+  box.style.cssText = "max-width:1400px;margin:20px auto;padding:14px 18px;border:1px solid #ef4444;border-radius:10px;background:rgba(239,68,68,0.12);color:#fca5a5;font-size:13px";
+  box.textContent = msg;
+  document.body.insertBefore(box, document.body.firstChild);
+  console.error(msg);
+}
+
 /* ---------------- init ---------------- */
 async function init() {
-  const [loans, summary] = await Promise.all([
-    fetch("data/loans.json").then((r) => r.json()),
-    fetch("data/summary.json").then((r) => r.json()),
-  ]);
-  LOANS = loans;
-  SUMMARY = summary;
-  MONTHS = [...new Set(loans.map((l) => (l.disbursement_date || "").slice(0, 7)).filter(Boolean))].sort();
-  const s = summary.summary;
-  document.getElementById("headerMeta").innerHTML =
-    `<strong>${summary.lender.name}</strong> · ID ${summary.lender.user_id}<br>${s.from_date} → ${s.to_date} · <strong>${fmt.format(summary.stats.total_loans)}</strong> loans · <strong>${inr(s.disbursed_amount)}</strong> disbursed`;
-  buildLayout();
-  renderChips();
-  renderKPIs();
-  renderTable();
-  renderAll();
-  console.log("Dashboard ready —", SECTIONS.reduce((a, s) => a + s.charts.length, 0), "charts");
+  try {
+    const [loans, summary] = await Promise.all([
+      window.LOAN_DATA ? Promise.resolve(window.LOAN_DATA) : fetch("data/loans.json").then((r) => r.json()),
+      window.SUMMARY_DATA ? Promise.resolve(window.SUMMARY_DATA) : fetch("data/summary.json").then((r) => r.json()),
+    ]);
+    if (!Array.isArray(loans) || !loans.length || !summary || !summary.summary) {
+      throw new Error("Loan data failed to load.");
+    }
+    LOANS = loans;
+    SUMMARY = summary;
+    MONTHS = [...new Set(loans.map((l) => (l.disbursement_date || "").slice(0, 7)).filter(Boolean))].sort();
+    const s = summary.summary;
+    document.getElementById("headerMeta").innerHTML =
+      `<strong>${summary.lender.name}</strong> · ID ${summary.lender.user_id}<br>${s.from_date} → ${s.to_date} · <strong>${fmt.format(summary.stats.total_loans)}</strong> loans · <strong>${inr(s.disbursed_amount)}</strong> disbursed`;
+    buildLayout();
+    renderChips();
+    renderKPIs();
+    renderTable();
+    await ensureECharts();
+    renderAll();
+    console.log("Dashboard ready —", SECTIONS.reduce((a, s) => a + s.charts.length, 0), "charts");
+  } catch (err) {
+    showError("Something went wrong: " + err.message + " — try reloading the page.");
+  }
 }
 
 document.getElementById("repayFilter").addEventListener("change", (e) => { state.repay = e.target.value; renderAll(); renderKPIs(); renderTable(); });

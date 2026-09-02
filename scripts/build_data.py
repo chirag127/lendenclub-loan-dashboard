@@ -185,6 +185,17 @@ def main():
     with open("data/summary.json", "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 
+    # JS globals so the page works without fetch() (file://, strict networks, etc.)
+    with open("data/loans.js", "w", encoding="utf-8") as f:
+        f.write("window.LOAN_DATA = ")
+        json.dump(loans, f, ensure_ascii=False, separators=(",", ":"))
+        f.write(";")
+
+    with open("data/summary.js", "w", encoding="utf-8") as f:
+        f.write("window.SUMMARY_DATA = ")
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+        f.write(";")
+
     print(f"OK: {len(loans)} loans -> data/loans.json + data/summary.json")
     print("disbursed:", summary["disbursed_amount"], "| received:", summary["total_amount_received"])
     print("status:", status_counts)
