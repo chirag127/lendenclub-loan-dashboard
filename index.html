@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LenDenClub · Loan Analytics Dashboard</title>
+<meta name="description" content="Manual lending analytics dashboard for LenDenClub (Lending Club India) — 50+ charts, KPIs and full loan analysis.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💚</text></svg>">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-logo">💚</span>
+      <div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span></div>
+        <div class="brand-sub">Loan Analytics Dashboard</div>
+      </div>
+    </div>
+    <div class="header-meta" id="headerMeta">Loading…</div>
+  </div>
+</header>
+
+<section class="kpis" id="kpis" aria-label="Key metrics"></section>
+
+<section class="filters" aria-label="Filters">
+  <div class="filter-block">
+    <span class="filter-label">Loan status</span>
+    <div class="chips" id="statusChips"></div>
+  </div>
+  <div class="filter-block">
+    <span class="filter-label">Repayment type</span>
+    <select id="repayFilter" class="select">
+      <option value="All">All</option>
+      <option value="Monthly">Monthly only</option>
+      <option value="Daily">Daily only</option>
+    </select>
+  </div>
+  <div class="filter-block">
+    <span class="filter-label">Data window</span>
+    <select id="windowFilter" class="select">
+      <option value="All">All months</option>
+      <option value="Dec25">Dec 2025</option>
+      <option value="Jan26">Jan 2026</option>
+      <option value="Feb26">Feb 2026</option>
+      <option value="Mar26">Mar 2026</option>
+      <option value="Apr26">Apr 2026</option>
+      <option value="May26">May 2026</option>
+      <option value="Jun26">Jun 2026</option>
+      <option value="Jul26">Jul 2026</option>
+      <option value="Aug26">Aug 2026</option>
+      <option value="Sep26">Sep 2026</option>
+    </select>
+  </div>
+  <button class="btn" id="resetBtn">Reset filters</button>
+</section>
+
+<main class="charts" id="charts"></main>
+
+<section class="table-section">
+  <div class="section-head">
+    <h2>Loan register</h2>
+    <div class="table-tools">
+      <input id="tableSearch" class="select" type="search" placeholder="Search loan ID, order ID…">
+      <span class="muted" id="tableCount"></span>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="loanTable">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<footer class="foot">
+  <p>Data source: <code>MANUAL_LENDING_REPORT_5XDIOTZGEZ_17883746044558.xlsx</code> · Generated with <code>scripts/build_data.py</code> · Charts: Apache ECharts · <a href="https://github.com/chirag127/lendenclub-loan-dashboard" target="_blank" rel="noopener">GitHub</a></p>
+  <p class="muted">Personal contact details (email/mobile) are intentionally excluded from this public dataset.</p>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

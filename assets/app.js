@@ -1,0 +1,872 @@
+/* LenDenClub Loan Analytics Dashboard — 52 charts, Apache ECharts */
+"use strict";
+
+/* ---------------- formatting helpers ---------------- */
+const fmt = new Intl.NumberFormat("en-IN");
+const inr = (n) => "₹" + fmt.format(Math.round(n || 0));
+function inrCompact(n) {
+  const a = Math.abs(n || 0);
+  if (a >= 1e7) return "₹" + (n / 1e7).toFixed(2) + "Cr";
+  if (a >= 1e5) return "₹" + (n / 1e5).toFixed(2) + "L";
+  if (a >= 1e3) return "₹" + (n / 1e3).toFixed(1) + "K";
+  return "₹" + fmt.format(Math.round(n || 0));
+}
+const pct = (n) => (n == null ? "–" : n.toFixed(1) + "%");
+const MONTH_LABEL = {
+  "2025-12": "Dec 25", "2026-01": "Jan 26", "2026-02": "Feb 26", "2026-03": "Mar 26",
+  "2026-04": "Apr 26", "2026-05": "May 26", "2026-06": "Jun 26", "2026-07": "Jul 26",
+  "2026-08": "Aug 26", "2026-09": "Sep 26",
+};
+
+/* ---------------- palette ---------------- */
+const STATUS_COLORS = {
+  CLOSED: "#22c55e", ACTIVE: "#3b82f6", NPA: "#ef4444",
+  PROCESSING: "#f59e0b", REJECTED: "#64748b", CANCELLED: "#a855f7",
+};
+const GREEN = "#22c55e", BLUE = "#3b82f6", RED = "#ef4444", AMBER = "#f59e0b", PURPLE = "#a855f7", CYAN = "#06b6d4";
+const AXIS = { axisLine: { lineStyle: { color: "#2b3c5e" } }, axisLabel: { color: "#8fa3c0" }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } };
+
+/* ---------------- state ---------------- */
+let LOANS = [];
+let SUMMARY = null;
+const state = {
+  status: new Set(["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"]),
+  repay: "All",
+  window: "All",
+};
+let MONTHS = []; // 'YYYY-MM' ascending
+
+const WINDOW_MAP = {
+  All: null, Dec25: "2025-12", Jan26: "2026-01", Feb26: "2026-02", Mar26: "2026-03",
+  Apr26: "2026-04", May26: "2026-05", Jun26: "2026-06", Jul26: "2026-07", Aug26: "2026-08", Sep26: "2026-09",
+};
+
+/* ---------------- data helpers ---------------- */
+function filtered() {
+  const wm = WINDOW_MAP[state.window];
+  return LOANS.filter((l) =>
+    state.status.has(l.status) &&
+    (state.repay === "All" || l.repayment_type === state.repay) &&
+    (!wm || (l.disbursement_date || "").startsWith(wm))
+  );
+}
+function monthIndex(m) { return MONTHS.indexOf(m); }
+function sumByMonth(loans, key) {
+  const out = MONTHS.map(() => 0);
+  loans.forEach((l) => { const i = monthIndex((l.disbursement_date || "").slice(0, 7)); if (i >= 0) out[i] += l[key] || 0; });
+  return out;
+}
+function countByMonth(loans) {
+  const out = MONTHS.map(() => 0);
+  loans.forEach((l) => { const i = monthIndex((l.disbursement_date || "").slice(0, 7)); if (i >= 0) out[i] += 1; });
+  return out;
+}
+function avgByMonth(loans, key) {
+  const s = sumByMonth(loans, key), c = countByMonth(loans);
+  return s.map((v, i) => (c[i] ? +(v / c[i]).toFixed(2) : null));
+}
+function cum(arr) { let t = 0; return arr.map((v) => (t += v || 0)); }
+function avg(arr) { const v = arr.filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+function histOf(loans, key, buckets) {
+  // buckets: [{label, min, max}]  ->  counts + sum + avg
+  const res = buckets.map((b) => ({ ...b, count: 0, sum: 0 }));
+  loans.forEach((l) => {
+    const v = l[key];
+    if (v == null) return;
+    const b = buckets.find((b) => v >= b.min && v < b.max);
+    if (b) { const r = res.find((x) => x.label === b.label); r.count += 1; r.sum += v; }
+  });
+  return res;
+}
+function rateByMonth(loans, isBad) {
+  const total = countByMonth(loans);
+  const bad = MONTHS.map(() => 0);
+  loans.forEach((l) => { const i = monthIndex((l.disbursement_date || "").slice(0, 7)); if (i >= 0 && isBad(l)) bad[i] += 1; });
+  return total.map((t, i) => (t ? +((bad[i] / t) * 100).toFixed(2) : null));
+}
+const SCORE_BANDS = [
+  { label: "700–724", min: 700, max: 725 }, { label: "725–749", min: 725, max: 750 },
+  { label: "750–774", min: 750, max: 775 }, { label: "775–799", min: 775, max: 800 },
+  { label: "800+", min: 800, max: 10000 },
+];
+const RATE_BUCKETS = [
+  { label: "<35%", min: 0, max: 35 }, { label: "35–40%", min: 35, max: 40 },
+  { label: "40–45%", min: 40, max: 45 }, { label: "45–50%", min: 45, max: 50 },
+  { label: "50%+", min: 50, max: 100 },
+];
+const AMOUNT_BUCKETS = [
+  { label: "≤ ₹250", min: 0, max: 250.01 }, { label: "₹251–500", min: 250.01, max: 500.01 },
+  { label: "₹501–1K", min: 500.01, max: 1000.01 }, { label: "₹1–2K", min: 1000.01, max: 2000.01 },
+  { label: "₹2–4K", min: 2000.01, max: 4000.01 },
+];
+const DPD_BUCKETS = [
+  { label: "0 days", min: 0, max: 0.5 }, { label: "1–30", min: 0.5, max: 30.5 },
+  { label: "31–60", min: 30.5, max: 60.5 }, { label: "61–90", min: 60.5, max: 90.5 },
+  { label: ">90", min: 90.5, max: 10000 },
+];
+const TENURES = [2, 3, 4, 5, 6, 12];
+
+/* ---------------- shared option pieces ---------------- */
+function baseOption() {
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: "#e6edf7", fontFamily: "Segoe UI, system-ui, sans-serif" },
+    tooltip: { trigger: "axis", backgroundColor: "#0f1a2e", borderColor: "#2b3c5e", textStyle: { color: "#e6edf7", fontSize: 12 } },
+    grid: { left: 46, right: 16, top: 30, bottom: 28 },
+    legend: { textStyle: { color: "#8fa3c0", fontSize: 11 }, top: 0 },
+  };
+}
+const CAT_AXIS = (cats) => ({ type: "category", data: cats, axisLine: AXIS.axisLine, axisLabel: { color: "#8fa3c0" } });
+const VAL_AXIS = (money) => ({
+  type: "value", axisLabel: { color: "#8fa3c0", formatter: money ? (v) => inrCompact(v) : (v) => fmt.format(v) },
+  splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } },
+});
+const MLABELS = MONTHS.map((m) => MONTH_LABEL[m] || m);
+const tooltipMoney = (prefix) => ({ valueFormatter: (v) => (prefix || "") + inr(v) });
+
+/* ---------------- chart registry ---------------- */
+const SECTIONS = [];
+
+function addChart(sectionName, sectionSub, id, title, sub, h, builder) {
+  let sec = SECTIONS.find((s) => s.name === sectionName);
+  if (!sec) { sec = { name: sectionName, sub: sectionSub, charts: [] }; SECTIONS.push(sec); }
+  sec.charts.push({ id, title, sub, h, builder });
+}
+
+/* ============ A. Portfolio overview ============ */
+addChart("Portfolio overview", "Headline numbers from the manual lending report (Dec 2025 – Sep 2026)", "g1", "Loan status split", "Share of the 2,993 loans by current status", 300, (L) => {
+  const counts = {};
+  L.forEach((l) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+  const names = Object.keys(counts).sort();
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `${p.name}<br/><b>${fmt.format(p.value)}</b> loans (${p.percent}%)` },
+    legend: { ...baseOption().legend, bottom: 0, top: "auto" },
+    series: [{
+      type: "pie", radius: ["45%", "72%"], center: ["50%", "46%"],
+      label: { color: "#e6edf7", formatter: "{b}\n{d}%" },
+      itemStyle: { borderColor: "#0b1220", borderWidth: 2 },
+      data: names.map((n) => ({ name: n, value: counts[n], itemStyle: { color: STATUS_COLORS[n] } })),
+    }],
+  };
+});
+
+addChart("Portfolio overview", "Total disbursed vs received vs still outstanding vs NPA exposure", "g2", "Money in the portfolio", "Headline amounts from the report summary (₹)", 300, (L, S) => {
+  const s = S.summary;
+  const items = [
+    { name: "Disbursed", value: s.disbursed_amount, c: BLUE },
+    { name: "Received", value: s.total_amount_received, c: GREEN },
+    { name: "Principal outstanding", value: s.principal_outstanding, c: AMBER },
+    { name: "NPA amount", value: s.npa_amount, c: RED },
+    { name: "Platform fees", value: s.platform_fee, c: PURPLE },
+  ];
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `${p.name}<br/><b>${inr(p.value)}</b>` },
+    xAxis: { type: "category", data: items.map((i) => i.name), axisLabel: { color: "#8fa3c0" }, axisLine: AXIS.axisLine },
+    yAxis: VAL_AXIS(true),
+    series: [{ type: "bar", barWidth: 44, data: items.map((i) => ({ value: i.value, itemStyle: { color: i.c, borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#e6edf7", formatter: (p) => inrCompact(p.value) } }],
+  };
+});
+
+addChart("Portfolio overview", "2,969 monthly-repayment vs 24 daily-repayment loans", "g3", "Repayment type split", "How loans are set to repay", 300, (L) => {
+  const counts = {};
+  L.forEach((l) => { counts[l.repayment_type] = (counts[l.repayment_type] || 0) + 1; });
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `${p.name}<br/><b>${fmt.format(p.value)}</b> loans (${p.percent}%)` },
+    series: [{
+      type: "pie", radius: "68%", center: ["50%", "50%"],
+      label: { color: "#e6edf7", formatter: "{b}\n{d}%" },
+      data: Object.entries(counts).map(([name, value]) => ({ name, value, itemStyle: { color: name === "Monthly" ? GREEN : CYAN } })),
+    }],
+  };
+});
+
+addChart("Portfolio overview", "Rate range seen across all loans (18.0% – 58.2%)", "g4", "Interest rate histogram", "How many loans carry each rate band", 300, (L) => {
+  const h = histOf(L, "interest_rate", RATE_BUCKETS);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(h.map((b) => b.label)),
+    yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p.name}<br/><b>${fmt.format(p.value)}</b> loans<br/>avg rate ${p.data.avg.toFixed(2)}%` },
+    series: [{ type: "bar", barWidth: "58%", data: h.map((b) => ({ value: b.count, avg: b.count ? b.sum / b.count : 0, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+/* ============ B. Disbursement activity ============ */
+addChart("Disbursement activity", "₹26.28L lent across 10 months", "d1", "Monthly disbursed amount", "New lending per month (₹)", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> disbursed` },
+  series: [{
+    type: "line", smooth: true, symbol: "circle", symbolSize: 7,
+    data: sumByMonth(L, "amount"),
+    lineStyle: { color: GREEN, width: 3 }, itemStyle: { color: GREEN },
+    areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(34,197,94,0.35)" }, { offset: 1, color: "rgba(34,197,94,0.02)" }] } },
+  }],
+}));
+
+addChart("Disbursement activity", "Loan origination volume by month", "d2", "Loans disbursed per month", "Count of loans originated each month", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${fmt.format(p[0].value)}</b> loans` },
+  series: [{ type: "bar", barWidth: "55%", data: countByMonth(L), itemStyle: { color: BLUE, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10 } }],
+}));
+
+addChart("Disbursement activity", "Running total of capital lent", "d3", "Cumulative amount disbursed", "₹ lent since Dec 2025, accumulating", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Cumulative <b>${inr(p[0].value)}</b>` },
+  series: [{ type: "line", smooth: true, data: cum(sumByMonth(L, "amount")), lineStyle: { color: CYAN, width: 3 }, itemStyle: { color: CYAN }, areaStyle: { color: "rgba(6,182,212,0.12)" } }],
+}));
+
+addChart("Disbursement activity", "Average ticket size per month (disbursed ÷ loans)", "d4", "Average loan amount by month", "Ticket-size trend over time", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg <b>${inr(p[0].value)}</b>` },
+  series: [{ type: "line", smooth: true, data: avgByMonth(L, "amount"), lineStyle: { color: PURPLE, width: 3 }, itemStyle: { color: PURPLE }, areaStyle: { color: "rgba(168,85,247,0.12)" } }],
+}));
+
+addChart("Disbursement activity", "Which weekday you lend on most", "d5", "Disbursements by day of week", "Total ₹ disbursed per weekday", 300, (L) => {
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const sums = names.map(() => 0);
+  L.forEach((l) => {
+    const d = new Date(l.disbursement_date + "T00:00:00");
+    if (!isNaN(d)) sums[d.getDay()] += l.amount || 0;
+  });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(names), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> disbursed` },
+    series: [{ type: "bar", barWidth: "52%", data: sums.map((v) => ({ value: v, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Disbursement activity", "Seasonality within the month", "d6", "Disbursements by day of month", "Total ₹ disbursed on the 1st…31st", 300, (L) => {
+  const sums = Array(31).fill(0);
+  L.forEach((l) => { const d = new Date(l.disbursement_date + "T00:00:00"); if (!isNaN(d)) sums[d.getDate() - 1] += l.amount || 0; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(Array.from({ length: 31 }, (_, i) => i + 1)), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Day ${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> disbursed` },
+    series: [{ type: "line", smooth: true, symbol: "none", data: sums, lineStyle: { color: AMBER, width: 2 }, areaStyle: { color: "rgba(245,158,11,0.10)" } }],
+  };
+});
+
+addChart("Disbursement activity", "Stacked by tenure in months", "d7", "Monthly disbursed by tenure", "Which tenures drive each month's lending", 340, (L) => {
+  const ser = TENURES.map((t) => ({
+    name: t + " mo", type: "bar", stack: "t", barWidth: "62%",
+    data: MONTHS.map((m) => L.filter((l) => (l.disbursement_date || "").slice(0, 7) === m && l.tenure === t).reduce((a, l) => a + (l.amount || 0), 0)),
+  }));
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + inr(p.value) + "</b>").join("<br/>") },
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+    series: ser.map((s, i) => ({ ...s, itemStyle: { color: ["#22c55e", "#3b82f6", "#06b6d4", "#a855f7", "#f59e0b", "#ef4444"][i] } })),
+  };
+});
+
+addChart("Disbursement activity", "Ranking of origination months by ₹ lent", "d8", "Top months by disbursement", "Highest-volume months", 300, (L) => {
+  const vals = sumByMonth(L, "amount").map((v, i) => ({ name: MLABELS[i], value: v }));
+  vals.sort((a, b) => a.value - b.value);
+  return {
+    ...baseOption(),
+    grid: { left: 70, right: 20, top: 10, bottom: 26 },
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `${p.name}<br/><b>${inr(p.value)}</b>` },
+    xAxis: VAL_AXIS(true), yAxis: { type: "category", data: vals.map((v) => v.name), axisLine: AXIS.axisLine, axisLabel: { color: "#8fa3c0" } },
+    series: [{ type: "bar", data: vals.map((v) => ({ value: v.value, itemStyle: { color: GREEN, borderRadius: [0, 6, 6, 0] } })) }],
+  };
+});
+
+/* ============ C. Loan characteristics ============ */
+addChart("Loan characteristics", "Ticket sizes seen (0-amount unfunded loans excluded)", "c1", "Loan amount distribution", "Number of loans in each amount band", 300, (L) => {
+  const h = histOf(L.filter((l) => (l.amount || 0) > 0), "amount", AMOUNT_BUCKETS);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(h.map((b) => b.label)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p.name}<br/><b>${fmt.format(p.value)}</b> loans<br/>total ${inr(p.data.sum)}` },
+    series: [{ type: "bar", barWidth: "58%", data: h.map((b) => ({ value: b.count, sum: b.sum, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Loan characteristics", "Average ticket size per tenure", "c2", "Average loan amount by tenure", "₹ lent per loan vs tenure", 300, (L) => {
+  const data = TENURES.map((t) => { const xs = L.filter((l) => l.tenure === t && (l.amount || 0) > 0); return { name: t + " mo", avg: xs.length ? avg(xs.map((l) => l.amount)) : null, count: xs.length }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg <b>${inr(p[0].value)}</b> (${fmt.format(p[0].data.count)} loans)` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, count: d.count, itemStyle: { color: BLUE, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Loan characteristics", "Rates charged rise sharply with tenure", "c3", "Average interest rate by tenure", "Cost of money vs repayment period", 300, (L) => {
+  const data = TENURES.map((t) => { const xs = L.filter((l) => l.tenure === t && l.interest_rate != null); return { name: t + " mo", avg: xs.length ? avg(xs.map((l) => l.interest_rate)) : null }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg rate <b>${p[0].value}%</b>` },
+    series: [{ type: "line", smooth: true, symbol: "circle", symbolSize: 9, data: data.map((d) => d.avg), lineStyle: { color: RED, width: 3 }, itemStyle: { color: RED } }],
+  };
+});
+
+addChart("Loan characteristics", "2/3/4/5/6/12-month tenures on offer", "c4", "Tenure distribution", "How many loans at each tenure", 300, (L) => {
+  const counts = TENURES.map((t) => L.filter((l) => l.tenure === t).length);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(TENURES.map((t) => t + " mo")), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${fmt.format(p[0].value)}</b> loans` },
+    series: [{ type: "bar", barWidth: "55%", data: counts.map((v, i) => ({ value: v, itemStyle: { color: ["#22c55e", "#3b82f6", "#06b6d4", "#a855f7", "#f59e0b", "#ef4444"][i], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10 } }],
+  };
+});
+
+addChart("Loan characteristics", "Where your ₹26.28L went by tenure", "c5", "Disbursed amount by tenure", "₹ lent per tenure bucket", 300, (L) => {
+  const sums = TENURES.map((t) => L.filter((l) => l.tenure === t).reduce((a, l) => a + (l.amount || 0), 0));
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(TENURES.map((t) => t + " mo")), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b>` },
+    series: [{ type: "bar", barWidth: "55%", data: sums.map((v, i) => ({ value: v, itemStyle: { color: ["#22c55e", "#3b82f6", "#06b6d4", "#a855f7", "#f59e0b", "#ef4444"][i], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10, formatter: (p) => inrCompact(p.value) } }],
+  };
+});
+
+addChart("Loan characteristics", "LenDenClub scores run 700–878 (avg 732)", "c6", "LenDenClub score histogram", "Underwriting score distribution", 300, (L) => {
+  const h = histOf(L, "score", SCORE_BANDS);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(h.map((b) => b.label)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Score ${p.name}<br/><b>${fmt.format(p.value)}</b> loans` },
+    series: [{ type: "bar", barWidth: "58%", data: h.map((b) => ({ value: b.count, itemStyle: { color: CYAN, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Loan characteristics", "Borrower quality trend over time", "c7", "Average score by month", "Avg LenDenClub score of loans originated", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg score <b>${p[0].value}</b>` },
+  series: [{ type: "line", smooth: true, data: avgByMonth(L, "score"), lineStyle: { color: BLUE, width: 3 }, itemStyle: { color: BLUE }, areaStyle: { color: "rgba(59,130,246,0.12)" } }],
+}));
+
+addChart("Loan characteristics", "Score vs repayment duration", "c8", "Average score by tenure", "Borrower quality across tenures", 300, (L) => {
+  const data = TENURES.map((t) => { const xs = L.filter((l) => l.tenure === t && l.score != null); return { name: t + " mo", avg: xs.length ? avg(xs.map((l) => l.score)) : null }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg score <b>${p[0].value}</b>` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => d.avg), itemStyle: { color: PURPLE, borderRadius: [6, 6, 0, 0] } }],
+  };
+});
+
+addChart("Loan characteristics", "Higher scores get bigger tickets", "c9", "Average loan amount by score band", "Ticket size vs credit score", 300, (L) => {
+  const data = SCORE_BANDS.map((b) => { const xs = L.filter((l) => l.score >= b.min && l.score < b.max && (l.amount || 0) > 0); return { name: b.label, avg: xs.length ? avg(xs.map((l) => l.amount)) : null, count: xs.length }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Score ${p[0].axisValue}<br/>Avg <b>${inr(p[0].value)}</b> (${fmt.format(p[0].data.count)} loans)` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, count: d.count, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Loan characteristics", "Rates by borrower score bucket", "c10", "Average interest rate by score band", "Do better scores get cheaper money?", 300, (L) => {
+  const data = SCORE_BANDS.map((b) => { const xs = L.filter((l) => l.score >= b.min && l.score < b.max && l.interest_rate != null); return { name: b.label, avg: xs.length ? avg(xs.map((l) => l.interest_rate)) : null }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Score ${p[0].axisValue}<br/>Avg rate <b>${p[0].value}%</b>` },
+    series: [{ type: "line", smooth: true, symbol: "circle", symbolSize: 9, data: data.map((d) => d.avg), lineStyle: { color: AMBER, width: 3 }, itemStyle: { color: AMBER } }],
+  };
+});
+
+addChart("Loan characteristics", "Origination volume by score bucket", "c11", "Loan count by score band", "How many loans per score band", 300, (L) => {
+  const h = histOf(L, "score", SCORE_BANDS);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(h.map((b) => b.label)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Score ${p.name}<br/><b>${fmt.format(p.value)}</b> loans` },
+    series: [{ type: "bar", barWidth: "52%", data: h.map((b) => ({ value: b.count, itemStyle: { color: CYAN, borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10 } }],
+  };
+});
+
+addChart("Loan characteristics", "Yields trend month to month", "c12", "Average interest rate by month", "Avg contracted rate of monthly originations", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg rate <b>${p[0].value}%</b>` },
+  series: [{ type: "line", smooth: true, data: avgByMonth(L, "interest_rate"), lineStyle: { color: RED, width: 3 }, itemStyle: { color: RED }, areaStyle: { color: "rgba(239,68,68,0.10)" } }],
+}));
+
+/* ============ D. Portfolio & status health ============ */
+addChart("Portfolio & status health", "Composition of the book over time", "s1", "Loan status counts by month", "Number of loans per status, originated each month", 320, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const series = statuses.map((st) => ({
+    name: st, type: "bar", stack: "s", barWidth: "62%",
+    data: MONTHS.map((m) => L.filter((l) => l.status === st && (l.disbursement_date || "").slice(0, 7) === m).length),
+    itemStyle: { color: STATUS_COLORS[st] },
+  }));
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value + "</b>").join("<br/>") },
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+    series,
+  };
+});
+
+addChart("Portfolio & status health", "Relative composition — share of each month's book", "s2", "Status share by month", "100% stacked view of originations", 320, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const series = statuses.map((st) => ({
+    name: st, type: "bar", stack: "s", barWidth: "62%",
+    data: MONTHS.map((m) => { const t = L.filter((l) => (l.disbursement_date || "").slice(0, 7) === m).length || 1; return +((L.filter((l) => l.status === st && (l.disbursement_date || "").slice(0, 7) === m).length / t) * 100).toFixed(1); }),
+    itemStyle: { color: STATUS_COLORS[st] },
+  }));
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, valueFormatter: (v) => v + "%", formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value + "%</b>").join("<br/>") },
+    xAxis: CAT_AXIS(MLABELS), yAxis: { ...VAL_AXIS(false), max: 100, axisLabel: { color: "#8fa3c0", formatter: "{value}%" } },
+    series,
+  };
+});
+
+addChart("Portfolio & status health", "Average ticket by outcome bucket", "s3", "Average loan amount by status", "Avg ₹ per loan in each status", 300, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const data = statuses.map((st) => { const xs = L.filter((l) => l.status === st && (l.amount || 0) > 0); return { name: st, avg: xs.length ? avg(xs.map((l) => l.amount)) : 0 }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg <b>${inr(p[0].value)}</b>` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, itemStyle: { color: STATUS_COLORS[d.name], borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Portfolio & status health", "Rates by outcome — NPAs carry the highest rates", "s4", "Average interest rate by status", "Avg contracted rate per status", 300, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const data = statuses.map((st) => { const xs = L.filter((l) => l.status === st && l.interest_rate != null); return { name: st, avg: xs.length ? avg(xs.map((l) => l.interest_rate)) : 0 }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg rate <b>${p[0].value}%</b>` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, itemStyle: { color: STATUS_COLORS[d.name], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10, formatter: (p) => p.value.toFixed(1) + "%" } }],
+  };
+});
+
+addChart("Portfolio & status health", "Borrower quality vs outcome", "s5", "Average score by status", "Avg LenDenClub score per status", 300, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const data = statuses.map((st) => { const xs = L.filter((l) => l.status === st && l.score != null); return { name: st, avg: xs.length ? avg(xs.map((l) => l.score)) : 0 }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg score <b>${p[0].value}</b>` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, itemStyle: { color: STATUS_COLORS[d.name], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10 } }],
+  };
+});
+
+addChart("Portfolio & status health", "How long each bucket runs", "s6", "Average tenure by status", "Avg months per status", 300, (L) => {
+  const statuses = ["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"];
+  const data = statuses.map((st) => { const xs = L.filter((l) => l.status === st && l.tenure != null); return { name: st, avg: xs.length ? avg(xs.map((l) => l.tenure)) : 0 }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg <b>${p[0].value}</b> months` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.avg, itemStyle: { color: STATUS_COLORS[d.name], borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 10, formatter: (p) => p.value.toFixed(1) + " mo" } }],
+  };
+});
+
+addChart("Portfolio & status health", "Area of each rectangle = ₹ disbursed", "s7", "Status treemap by disbursed amount", "Portfolio value by status", 320, (L) => {
+  const m = {};
+  L.forEach((l) => { m[l.status] = (m[l.status] || 0) + (l.amount || 0); });
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `${p.name}<br/><b>${inr(p.value)}</b>` },
+    series: [{
+      type: "treemap", roam: false, nodeClick: false,
+      breadcrumb: { show: false },
+      label: { color: "#fff", fontSize: 13, formatter: (p) => p.name + "\n" + inrCompact(p.value) },
+      data: Object.entries(m).map(([name, value]) => ({ name, value, itemStyle: { color: STATUS_COLORS[name] } })),
+    }],
+  };
+});
+
+/* ============ E. Risk — NPA & DPD ============ */
+const isNPA = (l) => l.status === "NPA";
+addChart("Risk — NPA & DPD", "148 loans have gone bad", "r1", "NPA loans by month", "NPA loans originated per month", 300, (L) => {
+  const n = MONTHS.map(() => 0);
+  L.forEach((l) => { const i = monthIndex((l.disbursement_date || "").slice(0, 7)); if (i >= 0 && isNPA(l)) n[i] += 1; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${fmt.format(p[0].value)}</b> NPA loans` },
+    series: [{ type: "bar", barWidth: "55%", data: n, itemStyle: { color: RED, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#f87171", fontSize: 10 } }],
+  };
+});
+
+addChart("Risk — NPA & DPD", "Principal stuck in non-performing loans", "r2", "NPA amount by month", "₹ of NPA principal per origination month", 300, (L) => {
+  const n = MONTHS.map(() => 0);
+  L.forEach((l) => { const i = monthIndex((l.disbursement_date || "").slice(0, 7)); if (i >= 0 && isNPA(l)) n[i] += l.npa_amount || 0; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>NPA <b>${inr(p[0].value)}</b>` },
+    series: [{ type: "bar", barWidth: "55%", data: n, itemStyle: { color: RED, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#f87171", fontSize: 9, formatter: (p) => (p.value ? inrCompact(p.value) : "") } }],
+  };
+});
+
+addChart("Risk — NPA & DPD", "Default rate = NPA loans ÷ loans originated that month", "r3", "NPA rate by month", "% of each month's book that went bad", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: { ...VAL_AXIS(false), axisLabel: { color: "#8fa3c0", formatter: "{value}%" } },
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>NPA rate <b>${p[0].value}%</b>` },
+  series: [{ type: "line", smooth: true, symbol: "circle", symbolSize: 8, data: rateByMonth(L, isNPA), lineStyle: { color: RED, width: 3 }, itemStyle: { color: RED }, areaStyle: { color: "rgba(239,68,68,0.12)" } }],
+}));
+
+addChart("Risk — NPA & DPD", "Which tenures default most often?", "r4", "NPA rate by tenure", "% of loans at each tenure that are NPA", 300, (L) => {
+  const data = TENURES.map((t) => { const xs = L.filter((l) => l.tenure === t); return { name: t + " mo", rate: xs.length ? +((xs.filter(isNPA).length / xs.length) * 100).toFixed(2) : null }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: { ...VAL_AXIS(false), axisLabel: { color: "#8fa3c0", formatter: "{value}%" } },
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>NPA rate <b>${p[0].value}%</b>` },
+    series: [{ type: "bar", barWidth: "52%", data: data.map((d) => ({ value: d.rate, itemStyle: { color: RED, borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#f87171", fontSize: 10, formatter: (p) => (p.value == null ? "" : p.value + "%") } }],
+  };
+});
+
+addChart("Risk — NPA & DPD", "Does score predict defaults?", "r5", "NPA rate by score band", "% of loans in each score band that went NPA", 300, (L) => {
+  const data = SCORE_BANDS.map((b) => { const xs = L.filter((l) => l.score >= b.min && l.score < b.max); return { name: b.label, rate: xs.length ? +((xs.filter(isNPA).length / xs.length) * 100).toFixed(2) : null }; });
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(data.map((d) => d.name)), yAxis: { ...VAL_AXIS(false), axisLabel: { color: "#8fa3c0", formatter: "{value}%" } },
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `Score ${p[0].axisValue}<br/>NPA rate <b>${p[0].value}%</b>` },
+    series: [{ type: "line", smooth: true, symbol: "circle", symbolSize: 9, data: data.map((d) => d.rate), lineStyle: { color: AMBER, width: 3 }, itemStyle: { color: AMBER } }],
+  };
+});
+
+addChart("Risk — NPA & DPD", "How overdue are the stressed loans", "r6", "DPD (days past due) histogram", "Loans grouped by overdue bucket", 300, (L) => {
+  const h = histOf(L, "dpd", DPD_BUCKETS);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(h.map((b) => b.label)), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `DPD ${p.name}<br/><b>${fmt.format(p.value)}</b> loans` },
+    series: [{ type: "bar", barWidth: "58%", data: h.map((b, i) => ({ value: b.count, itemStyle: { color: ["#22c55e", "#3b82f6", "#f59e0b", "#f97316", "#ef4444"][i], borderRadius: [6, 6, 0, 0] } })) }],
+  };
+});
+
+addChart("Risk — NPA & DPD", "Severity of lateness by origination month", "r7", "Average DPD by month", "Avg days past due of each month's book", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Avg DPD <b>${p[0].value}</b> days` },
+  series: [{ type: "line", smooth: true, data: avgByMonth(L, "dpd"), lineStyle: { color: RED, width: 3 }, itemStyle: { color: RED }, areaStyle: { color: "rgba(239,68,68,0.10)" } }],
+}));
+
+addChart("Risk — NPA & DPD", "Borrowers more than 30/60/90 days late", "r8", "Loans beyond 30/60/90 DPD by month", "Delinquency severity over time", 300, (L) => {
+  const mk = (n) => MONTHS.map((m) => L.filter((l) => (l.disbursement_date || "").slice(0, 7) === m && (l.dpd || 0) >= n).length);
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(false),
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value + "</b>").join("<br/>") },
+    series: [
+      { name: ">30 days", type: "line", data: mk(30), itemStyle: { color: AMBER }, lineStyle: { width: 2 } },
+      { name: ">60 days", type: "line", data: mk(60), itemStyle: { color: "#f97316" }, lineStyle: { width: 2 } },
+      { name: ">90 days", type: "line", data: mk(90), itemStyle: { color: RED }, lineStyle: { width: 3 } },
+    ],
+  };
+});
+
+/* ============ F. Returns & cashflow ============ */
+addChart("Returns & cashflow", "What came back, month by month", "i1", "Total amount received by month", "₹ received per month (principal + interest)", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> received` },
+  series: [{ type: "bar", barWidth: "55%", data: sumByMonth(L, "total_received"), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#4ade80", fontSize: 9, formatter: (p) => (p.value ? inrCompact(p.value) : "") } }],
+}));
+
+addChart("Returns & cashflow", "Capital returned vs interest earned", "i2", "Principal received by month", "₹ of principal repaid each month", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> principal` },
+  series: [{ type: "bar", barWidth: "55%", data: sumByMonth(L, "principal_received"), itemStyle: { color: BLUE, borderRadius: [6, 6, 0, 0] } }],
+}));
+
+addChart("Returns & cashflow", "₹2.53L of interest earned to date", "i3", "Interest received by month", "₹ of interest collected per month", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> interest` },
+  series: [{ type: "bar", barWidth: "55%", data: sumByMonth(L, "interest_received"), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#4ade80", fontSize: 9, formatter: (p) => (p.value ? inrCompact(p.value) : "") } }],
+}));
+
+addChart("Returns & cashflow", "Lending-club fees deducted", "i4", "Platform fee by month", "₹ of platform/facilitation fees per month", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> fees` },
+  series: [{ type: "bar", barWidth: "55%", data: sumByMonth(L, "platform_fee"), itemStyle: { color: PURPLE, borderRadius: [6, 6, 0, 0] } }],
+}));
+
+addChart("Returns & cashflow", "Interest + fee income minus NPA write-offs", "i5", "Profit & loss by month", "P&L attributed per origination month", 300, (L) => {
+  const data = sumByMonth(L, "pnl");
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>P&L <b>${inr(p[0].value)}</b>` },
+    series: [{ type: "bar", barWidth: "55%", data: data.map((v) => ({ value: v, itemStyle: { color: v >= 0 ? GREEN : RED, borderRadius: [6, 6, 0, 0] } })), label: { show: true, position: "top", color: "#8fa3c0", fontSize: 9, formatter: (p) => (p.value ? inrCompact(p.value) : "") } }],
+  };
+});
+
+addChart("Returns & cashflow", "Capital out vs capital back", "i6", "Cumulative received vs disbursed", "Running totals of lending vs repayments", 300, (L) => ({
+  ...baseOption(),
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + inr(p.value) + "</b>").join("<br/>") },
+  series: [
+    { name: "Disbursed", type: "line", data: cum(sumByMonth(L, "amount")), itemStyle: { color: BLUE }, lineStyle: { width: 3 } },
+    { name: "Received", type: "line", data: cum(sumByMonth(L, "total_received")), itemStyle: { color: GREEN }, lineStyle: { width: 3 } },
+  ],
+}));
+
+addChart("Returns & cashflow", "Principal received ÷ disbursed, cumulative recovery", "i7", "Recovery rate by month", "% of disbursed principal recovered", 300, (L) => {
+  const disp = cum(sumByMonth(L, "amount"));
+  const recv = cum(sumByMonth(L, "principal_received"));
+  const data = disp.map((d, i) => (d ? +((recv[i] / d) * 100).toFixed(1) : null));
+  return {
+    ...baseOption(),
+    xAxis: CAT_AXIS(MLABELS), yAxis: { ...VAL_AXIS(false), axisLabel: { color: "#8fa3c0", formatter: "{value}%" } },
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Recovery <b>${p[0].value}%</b>` },
+    series: [{ type: "line", smooth: true, symbol: "circle", symbolSize: 8, data, lineStyle: { color: CYAN, width: 3 }, itemStyle: { color: CYAN }, areaStyle: { color: "rgba(6,182,212,0.12)" } }],
+  };
+});
+
+addChart("Returns & cashflow", "Contractual repayment vs what actually came in", "i8", "Expected vs received by month", "₹ expected (illustrative) vs ₹ received per month", 300, (L) => ({
+  ...baseOption(),
+  tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + inr(p.value) + "</b>").join("<br/>") },
+  xAxis: CAT_AXIS(MLABELS), yAxis: VAL_AXIS(true),
+  series: [
+    { name: "Expected", type: "bar", barWidth: "30%", data: sumByMonth(L, "total_repayment"), itemStyle: { color: "#475569" } },
+    { name: "Received", type: "bar", barWidth: "30%", data: sumByMonth(L, "total_received"), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } },
+  ],
+}));
+
+/* ============ G. Correlations & advanced ============ */
+addChart("Correlations & advanced", "One point per loan", "x1", "Loan amount vs interest rate", "Do bigger loans carry better rates?", 320, (L) => {
+  const pts = L.filter((l) => (l.amount || 0) > 0 && l.interest_rate != null).map((l) => [l.amount, l.interest_rate]);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `Amount <b>${inr(p.value[0])}</b><br/>Rate <b>${p.value[1]}%</b>` },
+    xAxis: { type: "value", name: "Loan amount (₹)", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0", formatter: (v) => inrCompact(v) }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    yAxis: { type: "value", name: "Interest rate (%)", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0" }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    series: [{ type: "scatter", symbolSize: 5, data: pts, itemStyle: { color: "rgba(34,197,94,0.55)" } }],
+  };
+});
+
+addChart("Correlations & advanced", "One point per loan", "x2", "LenDenClub score vs interest rate", "Do higher scores get cheaper rates?", 320, (L) => {
+  const pts = L.filter((l) => l.score != null && l.interest_rate != null).map((l) => [l.score, l.interest_rate]);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `Score <b>${p.value[0]}</b><br/>Rate <b>${p.value[1]}%</b>` },
+    xAxis: { type: "value", name: "LenDenClub score", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0" }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    yAxis: { type: "value", name: "Interest rate (%)", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0" }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    series: [{ type: "scatter", symbolSize: 5, data: pts, itemStyle: { color: "rgba(59,130,246,0.55)" } }],
+  };
+});
+
+addChart("Correlations & advanced", "One point per loan", "x3", "Loan amount vs LenDenClub score", "Ticket size vs borrower quality", 320, (L) => {
+  const pts = L.filter((l) => (l.amount || 0) > 0 && l.score != null).map((l) => [l.score, l.amount]);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (p) => `Score <b>${p.value[0]}</b><br/>Amount <b>${inr(p.value[1])}</b>` },
+    xAxis: { type: "value", name: "LenDenClub score", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0" }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    yAxis: { type: "value", name: "Loan amount (₹)", nameTextStyle: { color: "#8fa3c0" }, axisLabel: { color: "#8fa3c0", formatter: (v) => inrCompact(v) }, splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } } },
+    series: [{ type: "scatter", symbolSize: 5, data: pts, itemStyle: { color: "rgba(168,85,247,0.55)" } }],
+  };
+});
+
+addChart("Correlations & advanced", "₹ disbursed per month × score band", "x4", "Heatmap: month × score band (₹)", "Where the money went by month and borrower quality", 340, (L) => {
+  const grid = SCORE_BANDS.map((b, j) => MONTHS.map((m, i) => [i, j, L.filter((l) => (l.disbursement_date || "").slice(0, 7) === m && l.score >= b.min && l.score < b.max).reduce((a, l) => a + (l.amount || 0), 0)]));
+  const max = Math.max(...grid.flat().map((c) => c[2]), 1);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, position: "top", formatter: (p) => `${MONTH_LABEL[MONTHS[p.value[0]]] || p.value[0]} · score ${SCORE_BANDS[p.value[1]].label}<br/><b>${inr(p.value[2])}</b> disbursed` },
+    grid: { left: 70, right: 20, top: 16, bottom: 70 },
+    xAxis: { type: "category", data: MLABELS, splitArea: { show: true }, axisLabel: { color: "#8fa3c0", rotate: 40 }, axisLine: AXIS.axisLine },
+    yAxis: { type: "category", data: SCORE_BANDS.map((b) => b.label), splitArea: { show: true }, axisLabel: { color: "#8fa3c0" }, axisLine: AXIS.axisLine },
+    visualMap: { min: 0, max, calculable: false, orient: "horizontal", left: "center", bottom: 0, textStyle: { color: "#8fa3c0", fontSize: 10 }, inRange: { color: ["#0b1220", "#14532d", "#22c55e"] } },
+    series: [{ type: "heatmap", data: grid.flat(), label: { show: false }, emphasis: { itemStyle: { shadowBlur: 8 } } }],
+  };
+});
+
+addChart("Correlations & advanced", "Loan count per month × tenure", "x5", "Heatmap: month × tenure (loan count)", "Origination density by month and tenure", 340, (L) => {
+  const grid = TENURES.map((t, j) => MONTHS.map((m, i) => [i, j, L.filter((l) => (l.disbursement_date || "").slice(0, 7) === m && l.tenure === t).length]));
+  const max = Math.max(...grid.flat().map((c) => c[2]), 1);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, position: "top", formatter: (p) => `${MONTH_LABEL[MONTHS[p.value[0]]] || p.value[0]} · ${TENURES[p.value[1]]} months<br/><b>${p.value[2]}</b> loans` },
+    grid: { left: 70, right: 20, top: 16, bottom: 70 },
+    xAxis: { type: "category", data: MLABELS, splitArea: { show: true }, axisLabel: { color: "#8fa3c0", rotate: 40 }, axisLine: AXIS.axisLine },
+    yAxis: { type: "category", data: TENURES.map((t) => t + " mo"), splitArea: { show: true }, axisLabel: { color: "#8fa3c0" }, axisLine: AXIS.axisLine },
+    visualMap: { min: 0, max, calculable: false, orient: "horizontal", left: "center", bottom: 0, textStyle: { color: "#8fa3c0", fontSize: 10 }, inRange: { color: ["#0b1220", "#1e3a8a", "#3b82f6"] } },
+    series: [{ type: "heatmap", data: grid.flat() }],
+  };
+});
+
+/* ---------------- renderer ---------------- */
+const instances = {};
+const cardsEl = document.getElementById("charts");
+
+function buildLayout() {
+  cardsEl.innerHTML = "";
+  SECTIONS.forEach((sec) => {
+    const secEl = document.createElement("section");
+    secEl.className = "section-title";
+    secEl.innerHTML = `<h2>${sec.name}</h2><p>${sec.sub}</p>`;
+    cardsEl.appendChild(secEl);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    sec.charts.forEach((c) => {
+      const card = document.createElement("div");
+      card.className = "chart-card";
+      card.innerHTML = `<div class="chart-head"><h3>${c.title}</h3><div class="chart-sub">${c.sub}</div></div><div class="chart-body" id="ch-${c.id}"></div>`;
+      grid.appendChild(card);
+    });
+    cardsEl.appendChild(grid);
+  });
+}
+
+function renderAll() {
+  const L = filtered();
+  SECTIONS.forEach((sec) => {
+    sec.charts.forEach((c) => {
+      let inst = instances[c.id];
+      if (!inst) {
+        inst = echarts.init(document.getElementById("ch-" + c.id), null, { renderer: "canvas" });
+        instances[c.id] = inst;
+        window.addEventListener("resize", () => inst.resize());
+      }
+      inst.setOption(c.builder(L, SUMMARY), true);
+    });
+  });
+}
+
+/* ---------------- KPI cards ---------------- */
+function renderKPIs() {
+  const L = filtered();
+  const s = SUMMARY.summary;
+  const st = SUMMARY.stats;
+  const totalAmt = L.reduce((a, l) => a + (l.amount || 0), 0);
+  const totalRecv = L.reduce((a, l) => a + (l.total_received || 0), 0);
+  const totalInt = L.reduce((a, l) => a + (l.interest_received || 0), 0);
+  const totalFee = L.reduce((a, l) => a + (l.platform_fee || 0), 0);
+  const totalPnl = L.reduce((a, l) => a + (l.pnl || 0), 0);
+  const npaCount = L.filter(isNPA).length;
+  const dpdCount = L.filter((l) => (l.dpd || 0) > 0).length;
+  const cards = [
+    { label: "Total disbursed", value: inrCompact(totalAmt), sub: inr(totalAmt), cls: "blue" },
+    { label: "Total received", value: inrCompact(totalRecv), sub: inr(totalRecv), cls: "good" },
+    { label: "Interest earned", value: inrCompact(totalInt), sub: inr(totalInt), cls: "good" },
+    { label: "Net P&L", value: inrCompact(totalPnl), sub: inr(totalPnl), cls: totalPnl >= 0 ? "good" : "bad" },
+    { label: "Platform fees", value: inrCompact(totalFee), sub: inr(totalFee) },
+    { label: "NPA amount", value: inrCompact(s.npa_amount), sub: npaCount + " NPA loans", cls: "bad" },
+    { label: "Principal outstanding", value: inrCompact(s.principal_outstanding), sub: "still active", cls: "blue" },
+    { label: "Avg interest rate", value: avg(L.map((l) => l.interest_rate).filter((x) => x != null)).toFixed(2) + "%", sub: "weighted avg " + weightedRate(L).toFixed(2) + "%", cls: "amber" },
+    { label: "Active loans", value: fmt.format(L.filter((l) => l.status === "ACTIVE").length), sub: "repaying now", cls: "blue" },
+    { label: "Closed loans", value: fmt.format(L.filter((l) => l.status === "CLOSED").length), sub: "fully repaid", cls: "good" },
+    { label: "NPA loans", value: fmt.format(npaCount), sub: pct((npaCount / (L.length || 1)) * 100) + " of book", cls: "bad" },
+    { label: "Loans with DPD > 0", value: fmt.format(dpdCount), sub: "days past due", cls: dpdCount ? "bad" : "good" },
+  ];
+  const el = document.getElementById("kpis");
+  el.innerHTML = cards.map((c) => `<div class="kpi ${c.cls || ""}"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.value}</div><div class="kpi-sub">${c.sub}</div></div>`).join("");
+}
+
+function weightedRate(L) {
+  let num = 0, den = 0;
+  L.forEach((l) => { if ((l.amount || 0) > 0 && l.interest_rate != null) { num += l.amount * l.interest_rate; den += l.amount; } });
+  return den ? num / den : 0;
+}
+
+/* ---------------- filters ---------------- */
+function renderChips() {
+  const el = document.getElementById("statusChips");
+  const counts = {};
+  LOANS.forEach((l) => { counts[l.status] = (counts[l.status] || 0) + 1; });
+  el.innerHTML = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([st, cnt]) => `<span class="chip ${state.status.has(st) ? "active" : "off"}" data-status="${st}"><span class="dot" style="background:${STATUS_COLORS[st]}"></span>${st} <span class="cnt">${fmt.format(cnt)}</span></span>`)
+    .join("");
+  el.querySelectorAll(".chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const st = chip.dataset.status;
+      if (state.status.has(st)) { if (state.status.size > 1) state.status.delete(st); }
+      else state.status.add(st);
+      renderChips(); renderAll(); renderKPIs(); renderTable();
+    });
+  });
+}
+
+/* ---------------- table ---------------- */
+let tableSort = { key: "disbursement_date", dir: -1 };
+const TABLE_COLS = [
+  { key: "loan_id", label: "Loan ID" }, { key: "order_id", label: "Order ID" },
+  { key: "disbursement_date", label: "Disbursed" }, { key: "amount", label: "Amount", num: true },
+  { key: "status", label: "Status" }, { key: "interest_rate", label: "Rate %", num: true },
+  { key: "tenure", label: "Tenure", num: true }, { key: "score", label: "Score", num: true },
+  { key: "dpd", label: "DPD", num: true }, { key: "total_received", label: "Received", num: true },
+  { key: "interest_received", label: "Interest", num: true }, { key: "pnl", label: "P&L", num: true },
+];
+function renderTable() {
+  const L = filtered();
+  const q = (document.getElementById("tableSearch").value || "").toLowerCase();
+  const rows = L
+    .filter((l) => !q || (l.loan_id || "").toLowerCase().includes(q) || (l.order_id || "").toLowerCase().includes(q))
+    .sort((a, b) => {
+      const va = a[tableSort.key], vb = b[tableSort.key];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1; if (vb == null) return -1;
+      return (va < vb ? -1 : va > vb ? 1 : 0) * tableSort.dir;
+    });
+  document.getElementById("tableCount").textContent = fmt.format(rows.length) + " loans";
+  const thead = document.querySelector("#loanTable thead");
+  thead.innerHTML = "<tr>" + TABLE_COLS.map((c) => `<th data-key="${c.key}" class="${c.num ? "num" : ""}">${c.label}${tableSort.key === c.key ? (tableSort.dir < 0 ? " ↓" : " ↑") : ""}</th>`).join("") + "</tr>";
+  thead.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
+    const k = th.dataset.key;
+    if (tableSort.key === k) tableSort.dir *= -1; else { tableSort.key = k; tableSort.dir = -1; }
+    renderTable();
+  }));
+  const tbody = document.querySelector("#loanTable tbody");
+  tbody.innerHTML = rows.slice(0, 2000).map((l) => `
+    <tr>
+      <td>${l.loan_id || "–"}</td><td>${l.order_id || "–"}</td>
+      <td>${l.disbursement_date || "–"}</td><td class="num">${l.amount ? inr(l.amount) : "–"}</td>
+      <td><span class="badge ${l.status}">${l.status}</span></td>
+      <td class="num">${l.interest_rate != null ? l.interest_rate.toFixed(2) + "%" : "–"}</td>
+      <td class="num">${l.tenure != null ? l.tenure + " mo" : "–"}</td>
+      <td class="num">${l.score != null ? Math.round(l.score) : "–"}</td>
+      <td class="num">${l.dpd ? Math.round(l.dpd) : "–"}</td>
+      <td class="num">${l.total_received ? inr(l.total_received) : "–"}</td>
+      <td class="num">${l.interest_received ? inr(l.interest_received) : "–"}</td>
+      <td class="num">${l.pnl ? inr(l.pnl) : "–"}</td>
+    </tr>`).join("") + (rows.length > 2000 ? `<tr><td colspan="12" class="muted">Showing first 2,000 of ${fmt.format(rows.length)} — narrow the search to see more.</td></tr>` : "");
+}
+
+/* ---------------- init ---------------- */
+async function init() {
+  const [loans, summary] = await Promise.all([
+    fetch("data/loans.json").then((r) => r.json()),
+    fetch("data/summary.json").then((r) => r.json()),
+  ]);
+  LOANS = loans;
+  SUMMARY = summary;
+  MONTHS = [...new Set(loans.map((l) => (l.disbursement_date || "").slice(0, 7)).filter(Boolean))].sort();
+  const s = summary.summary;
+  document.getElementById("headerMeta").innerHTML =
+    `<strong>${summary.lender.name}</strong> · ID ${summary.lender.user_id}<br>${s.from_date} → ${s.to_date} · <strong>${fmt.format(summary.stats.total_loans)}</strong> loans · <strong>${inr(s.disbursed_amount)}</strong> disbursed`;
+  buildLayout();
+  renderChips();
+  renderKPIs();
+  renderTable();
+  renderAll();
+  console.log("Dashboard ready —", SECTIONS.reduce((a, s) => a + s.charts.length, 0), "charts");
+}
+
+document.getElementById("repayFilter").addEventListener("change", (e) => { state.repay = e.target.value; renderAll(); renderKPIs(); renderTable(); });
+document.getElementById("windowFilter").addEventListener("change", (e) => { state.window = e.target.value; renderAll(); renderKPIs(); renderTable(); });
+document.getElementById("resetBtn").addEventListener("click", () => {
+  state.status = new Set(["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"]);
+  state.repay = "All"; state.window = "All";
+  document.getElementById("repayFilter").value = "All";
+  document.getElementById("windowFilter").value = "All";
+  document.getElementById("tableSearch").value = "";
+  renderChips(); renderAll(); renderKPIs(); renderTable();
+});
+document.getElementById("tableSearch").addEventListener("input", renderTable);
+
+init();
