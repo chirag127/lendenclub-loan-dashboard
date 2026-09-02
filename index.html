@@ -10,6 +10,7 @@
 <!-- ECharts vendored locally (Apache-2.0) so the site has no runtime CDN dependency -->
 <script src="assets/echarts.min.js"></script>
 <script>window.addEventListener("error", function (e) { var el = e.target; if (el && el.tagName === "SCRIPT" && el.src.indexOf("echarts") > -1 && !window.echarts) { var s = document.createElement("script"); s.src = "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"; document.head.appendChild(s); } }, true);</script>
+<noscript><style>.js-only{display:none!important}</style><div style="max-width:1400px;margin:20px auto;padding:14px 18px;border:1px solid #f59e0b;border-radius:10px;background:rgba(245,158,11,0.12);color:#fbbf24;font-size:13px">JavaScript is disabled — this dashboard needs JavaScript to render its KPIs, charts and loan register.</div></noscript>
 </head>
 <body>
 
@@ -18,7 +19,7 @@
     <div class="brand">
       <span class="brand-logo">💚</span>
       <div>
-        <div class="brand-name">LenDenClub <span>Manual Lending</span></div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v3</span></div>
         <div class="brand-sub">Loan Analytics Dashboard</div>
       </div>
     </div>
