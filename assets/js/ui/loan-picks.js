@@ -39,7 +39,7 @@ function renderLoanPicks() {
   el.innerHTML = `
     <div class="lp-head">
       <h4>🏆 Highest-XIRR loan picks — where your own completed loans say to lend next</h4>
-      <div class="lp-sub">Ranked by <b>net XIRR incl. every default</b> per tenure × score cell (matured loans only, ≥ ${p.min_matured} completed loans, platform fees deducted, zero-recovery NPAs booked as total losses). Avoid cells lose money after defaults — they get <b>₹0</b> of the recommendation. Cells with fewer than ${p.min_matured} matured loans aren't ranked yet (too little evidence).</div>
+      <div class="lp-sub">Every <b>net XIRR</b> below is <b>after everything</b>: all NPA defaults are counted in (zero-recovery NPAs booked as total losses) and <b>all platform and other fees are deducted</b> — there is nothing further to subtract, these are your true net returns per year. Ranked per tenure × score cell (matured loans only, ≥ ${p.min_matured} completed loans). Cells that lose money after defaults get <b>₹0</b> of the recommendation; cells with fewer than ${p.min_matured} matured loans aren't ranked yet (too little evidence).</div>
     </div>
     <div class="lp-sum">
       <span class="lp-chip" style="color:#22c55e;border-color:#22c55e44;background:#22c55e1a">🟢 Core ${tp.core ? tp.core.toFixed(0) : 0}% of lending</span>
