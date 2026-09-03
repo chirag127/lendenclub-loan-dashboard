@@ -19,7 +19,7 @@
     <div class="brand">
       <span class="brand-logo">💚</span>
       <div>
-        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v7</span></div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v8</span></div>
         <div class="brand-sub">Loan Analytics Dashboard</div>
       </div>
     </div>
@@ -86,10 +86,36 @@
   <p class="muted">Personal contact details (email/mobile) are intentionally excluded from this public dataset.</p>
 </footer>
 
+<!--
+  Modular classic scripts (no ES modules — must keep working from file:// with no server/CORS).
+  Load order: core → charts → curation → ui → boot. See assets/js/README.md.
+-->
 <script src="data/summary.js"></script>
 <script src="data/loans.js"></script>
 <script src="data/insights.js"></script>
 <script src="data/audit.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/js/core.js"></script>
+<script src="assets/js/charts/portfolio.js"></script>
+<script src="assets/js/charts/disbursement.js"></script>
+<script src="assets/js/charts/characteristics.js"></script>
+<script src="assets/js/charts/status-health.js"></script>
+<script src="assets/js/charts/risk.js"></script>
+<script src="assets/js/charts/tenure-score-risk.js"></script>
+<script src="assets/js/charts/cashflow.js"></script>
+<script src="assets/js/charts/net-returns.js"></script>
+<script src="assets/js/charts/xirr.js"></script>
+<script src="assets/js/charts/picks.js"></script>
+<script src="assets/js/charts/optional.js"></script>
+<script src="assets/js/curation.js"></script>
+<script src="assets/js/ui/renderer.js"></script>
+<script src="assets/js/ui/loan-picks.js"></script>
+<script src="assets/js/ui/reasons.js"></script>
+<script src="assets/js/ui/guardrails.js"></script>
+<script src="assets/js/ui/audit.js"></script>
+<script src="assets/js/ui/returns-statement.js"></script>
+<script src="assets/js/ui/kpis.js"></script>
+<script src="assets/js/ui/filters.js"></script>
+<script src="assets/js/ui/table.js"></script>
+<script src="assets/js/boot.js"></script>
 </body>
 </html>
