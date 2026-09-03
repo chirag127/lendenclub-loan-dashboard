@@ -1103,6 +1103,48 @@ addChart("Net returns — after everything", "Which tenure × score cells actual
   };
 });
 
+/* ============ H. Cashflow timing & true returns ============ */
+addChart("Cashflow timing & true returns", "EMIs arrive monthly, not at tenure end — time-weighted (XIRR) returns computed by the pipeline on your actual repayment schedules", "rt1", "True annualized return (XIRR) by tenure — net of fees", "Money-weighted return on closed loans, monthly EMI timing, fees deducted", 320, (L) => {
+  const x = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns;
+  const rows = TENURES.filter((t) => x && x.net_by_tenure[t] != null);
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Net XIRR <b>${p[0].value.toFixed(1)}%/yr</b><br/><span style="font-size:11px;color:#94a3b8">monthly EMI timing, fees deducted</span>` },
+    xAxis: CAT_AXIS(rows.map((t) => t + " mo")), yAxis: VAL_AXIS(false),
+    series: [{ type: "bar", barWidth: "46%", data: rows.map((t) => x.net_by_tenure[t]), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#4ade80", fontSize: 10, formatter: (p) => p.value.toFixed(1) + "%" }, markLine: { symbol: "none", label: { color: "#fbbf24", fontSize: 10, formatter: "portfolio " + x.portfolio_net.toFixed(1) + "%/yr" }, lineStyle: { color: "#f59e0b", type: "dashed" }, data: [{ yAxis: x.portfolio_net }] } }],
+  };
+});
+
+addChart("Cashflow timing & true returns", "Not everything at tenure end — the remaining ₹ arrives month by month", "rt2", "Expected future EMI receipts by month", "Contractual remaining EMIs from the " + (window.INSIGHTS_DATA && window.INSIGHTS_DATA.expected_emi_timeline ? window.INSIGHTS_DATA.expected_emi_timeline.months.length : "") + " active-book months", 320, (L) => {
+  const tl = window.INSIGHTS_DATA && window.INSIGHTS_DATA.expected_emi_timeline;
+  const cats = (tl && tl.months || []).map((m) => (MONTH_LABEL[m] || m).replace("20", "'"));
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> expected in EMIs` },
+    xAxis: CAT_AXIS(cats), yAxis: VAL_AXIS(true),
+    series: [{ type: "bar", barWidth: "52%", data: tl && tl.receipts || [], itemStyle: { color: CYAN, borderRadius: [5, 5, 0, 0] }, label: { show: true, position: "top", color: "#8fa3c0", fontSize: 9, formatter: (p) => (p.value ? inrCompact(p.value) : "") } }],
+  };
+});
+
+addChart("Cashflow timing & true returns", "Why monthly EMIs change the answer", "rt3", "Simple annualized vs true (XIRR) net return by tenure", "Simple figure assumes capital locked for the whole tenure; XIRR uses the real monthly EMI schedule", 320, (L) => {
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const x = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns;
+  const rows = TENURES.map((t) => {
+    const p = projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr);
+    return { t, simple: +(p.projectedROI * 12 / t).toFixed(1), xirr: x && x.net_by_tenure[t] };
+  }).filter((r) => r.xirr != null);
+  return {
+    ...baseOption(),
+    legend: { ...baseOption().legend, data: ["Projected net (simple annualized)", "Net XIRR (monthly EMI timing)"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value.toFixed(1) + "%/yr</b>").join("<br/>") },
+    xAxis: CAT_AXIS(rows.map((r) => r.t + " mo")), yAxis: VAL_AXIS(false),
+    series: [
+      { name: "Projected net (simple annualized)", type: "bar", barWidth: "30%", data: rows.map((r) => r.simple), itemStyle: { color: "#64748b", borderRadius: [5, 5, 0, 0] } },
+      { name: "Net XIRR (monthly EMI timing)", type: "bar", barWidth: "30%", data: rows.map((r) => r.xirr), itemStyle: { color: GREEN, borderRadius: [5, 5, 0, 0] } },
+    ],
+  };
+});
+
 addChart("Correlations & advanced", "One point per loan", "x1", "Loan amount vs interest rate", "Do bigger loans carry better rates?", 320, (L) => {
   const pts = L.filter((l) => (l.amount || 0) > 0 && l.interest_rate != null).map((l) => [l.amount, l.interest_rate]);
   return {
@@ -1323,6 +1365,7 @@ function renderReturnsStatement() {
       ${row("Gross ROI (interest ÷ disbursed)", pct(intr, disb))}
       ${row("Net ROI (after fees)", pct(net, disb))}
       ${row("Net ROI after NPA loss", pct(netAll, disb))}
+      ${row("True annualized (XIRR — monthly EMI timing)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns ? window.INSIGHTS_DATA.xirr_returns.portfolio_net.toFixed(1) + "%/yr net" : "—"), "rs-good")}
       ${row("Realized on closed loans only", pct(cIntr - cFee, closed.reduce((s, l) => s + (l.amount || 0), 0)))}
       ${row("Fees as % of interest earned", pct(fee, intr))}
       ${row("NPA loss as % of disbursed", pct(npaLoss, disb))}

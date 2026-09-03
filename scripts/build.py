@@ -45,6 +45,8 @@ def main():
         "returns_by_tenure": insights.returns_by_tenure(loans),
         "overall_returns": insights.overall_returns(loans),
         "interest_collection_rates": insights.interest_collection_rates(loans),
+        "xirr_returns": insights.xirr_returns(loans),
+        "expected_emi_timeline": insights.expected_emi_timeline(loans),
     }
 
     print("[4/5] auditing data against the source report")

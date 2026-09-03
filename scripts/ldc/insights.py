@@ -117,6 +117,95 @@ def interest_collection_rates(loans):
     return out
 
 
+def _add_months(iso, n):
+    """YYYY-MM-DD + n months -> YYYY-MM-DD."""
+    y, m, d = int(iso[:4]), int(iso[5:7]), int(iso[8:10])
+    m += n
+    y += (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    return f"{y:04d}-{m:02d}-{d:02d}"
+
+
+def _days(d1, d2):
+    from datetime import date
+    a = date(*map(int, d1.split("-")))
+    b = date(*map(int, d2.split("-")))
+    return (b - a).days
+
+
+def _irr(cashflows):
+    """Annualized IRR by bisection on daily cashflows [(day_offset, amount)]."""
+    lo, hi = -0.5, 5.0
+    for _ in range(300):
+        r = (lo + hi) / 2
+        npv = sum(a / (1 + r) ** (d / 365.0) for d, a in cashflows)
+        if abs(npv) < 1e-9:
+            break
+        if npv > 0:
+            lo = r
+        else:
+            hi = r
+    return (lo + hi) / 2
+
+
+def xirr_returns(loans):
+    """Time-weighted (XIRR) returns on closed loans, using the actual monthly
+    EMI schedule (repayment_start + 1..tenure months). Because EMIs return
+    capital every month instead of at tenure end, the true annualized return
+    is far higher than the simple net-ROI x 12/tenure figure."""
+    closed = [l for l in loans if l["status"] == "CLOSED"
+              and l["disbursement_date"] and l["repayment_start"]
+              and (l["amount"] or 0) > 0 and (l["total_received"] or 0) > 0]
+    gross_cf, net_cf = [], []
+    per_gross, per_net = {}, {}
+    for l in closed:
+        t = int(l["tenure"] or 1)
+        amt, tot, fee = l["amount"], l["total_received"], l["platform_fee"] or 0
+        g_emi, n_emi = tot / t, (tot - fee) / t
+        cf_g = [(0, -amt)]
+        cf_n = [(0, -amt)]
+        for i in range(1, t + 1):
+            d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
+            cf_g.append((d, g_emi))
+            cf_n.append((d, n_emi))
+        gross_cf.extend(cf_g)
+        net_cf.extend(cf_n)
+        per_gross.setdefault(t, []).extend(cf_g)
+        per_net.setdefault(t, []).extend(cf_n)
+
+    def _norm(cfs):
+        t0 = min(d for d, a in cfs)
+        return [(d - t0, a) for d, a in cfs]
+
+    out = {
+        "portfolio_gross": round(100 * _irr(_norm(gross_cf)), 1),
+        "portfolio_net": round(100 * _irr(_norm(net_cf)), 1),
+        "avg_capital_at_risk_pct": 50.0,  # even-principal monthly amortization
+        "gross_by_tenure": {str(t): round(100 * _irr(_norm(per_gross[t])), 1) for t in per_gross},
+        "net_by_tenure": {str(t): round(100 * _irr(_norm(per_net[t])), 1) for t in per_net},
+        "loans_used": len(closed),
+    }
+    return out
+
+
+def expected_emi_timeline(loans):
+    """Month-by-month future EMI receipts from the ACTIVE book (contractual).
+    Each active loan still owes (total_repayment - total_received); the remaining
+    EMIs are scheduled from the first unpaid month through the tenure end."""
+    buckets = {}
+    active = [l for l in loans if l["status"] == "ACTIVE" and l["repayment_start"]
+              and (l["total_repayment"] or 0) > (l["total_received"] or 0)]
+    for l in active:
+        t = int(l["tenure"] or 1)
+        emi = (l["total_repayment"] or 0) / t
+        paid = round((l["total_received"] or 0) / emi)
+        remaining = t - paid
+        for i in range(paid, t):
+            m = _add_months(l["repayment_start"], i)[:7]
+            buckets[m] = buckets.get(m, 0) + emi
+    return {"months": sorted(buckets), "receipts": [round(buckets[m], 2) for m in sorted(buckets)]}
+
+
 def overall_returns(loans):
     """Whole-book P&L statement."""
     m = _money(loans)
