@@ -1437,21 +1437,31 @@ function renderReturnsStatement() {
     </div>`;
   const TEN = [2, 3, 4, 5, 6, 12];
   const rows = TEN.map((t) => {
-    const r = L.filter((l) => l.tenure === t);
+    /* Completed cycles only: CLOSED + NPA loans. ACTIVE/PROCESSING loans are excluded
+       because their receipts are partial (interest still arriving) and their future NPA
+       write-offs aren't booked yet — pooling them with completed loans distorts the
+       realized return in both directions (flatters 6/12-mo, understates 2/4/5-mo). */
+    const r = L.filter((l) => l.tenure === t && (l.status === "CLOSED" || l.status === "NPA") && l.disbursement_date);
     if (!r.length) return null;
     const d = r.reduce((s, l) => s + (l.amount || 0), 0);
     const i = r.reduce((s, l) => s + (l.interest_received || 0), 0);
     const f = r.reduce((s, l) => s + (l.platform_fee || 0), 0);
-    const n = r.filter((l) => l.status === "NPA").reduce((s, l) => s + (l.npa_amount || 0), 0);
+    const n = r.reduce((s, l) => s + (l.npa_amount || 0), 0);
     const netR = i - f - n;
-    const ann = d > 0 ? ((netR / d) * (12 / t) * 100).toFixed(1) + "%" : "—";
-    const w = Math.min(100, Math.max(2, d > 0 ? (netR / d) * (12 / t) * 100 * 3 : 0));
-    return `<div class="rs-tenrow"><span class="rs-ten">${t} mo</span><span class="rs-tenbar"><i style="width:${w}%"></i></span><span class="rs-tenv">${ann}</span></div>`;
-  }).filter(Boolean).join("");
+    const perCycle = d ? 100 * netR / d : 0;
+    return { t, n: r.length, perCycle, ann: perCycle * (12 / t) };
+  }).filter(Boolean);
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.ann)));
+  const rowH = rows.map((r) => {
+    const neg = r.ann < 0;
+    const w = Math.min(100, Math.max(1.5, (100 * Math.abs(r.ann)) / maxAbs));
+    return `<div class="rs-tenrow"><span class="rs-ten">${r.t} mo</span><span class="rs-tenbar"><i class="${neg ? "neg" : ""}" style="width:${w}%"></i></span><span class="rs-tenv ${neg ? "neg" : ""}" title="${r.n} matured loans · ${r.perCycle.toFixed(2)}% net per completed cycle (interest − fees − NPA)">${neg ? "−" : ""}${Math.abs(r.ann).toFixed(1)}%/yr</span></div>`;
+  }).join("");
+  const perNotes = rows.map((r) => `${r.t}-mo ${r.perCycle.toFixed(2)}%/cycle`).join(" · ");
   const ten = `
-    <div class="rs-block"><h4>Annualized net return by tenure — realized to date (fees &amp; NPA deducted)</h4>
-      ${rows}
-      <div class="rs-note">Realized-only: interest received so far − fees − NPA losses, annualized by turnover. It excludes interest the active book will still earn — see the projected full-cycle panel (right) and the “Net returns — after everything” section for the complete numbers.</div>
+    <div class="rs-block"><h4>Annualized net return by tenure — completed cycles (fees &amp; NPA deducted)</h4>
+      ${rowH}
+      <div class="rs-note">Realized on <b>completed cycles only</b> (CLOSED + NPA loans — active &amp; unfunded excluded, their earnings aren't final yet), simple-annualized by turnover. Net per completed cycle: ${perNotes}. As active loans finish, 2/4/5-mo typically edge up — while 6/12-mo tend to fall once their defaults are booked: completed 12-mo cycles are <b>net-negative</b> (only ~25% of contracted interest collected, before write-offs). The projected panel (right) and XIRR charts cover the full lifecycle.</div>
     </div>`;
 
   /* ---- projected full-cycle (everything included) ---- */
