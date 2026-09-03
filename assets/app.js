@@ -916,6 +916,9 @@ addChart("Correlations & advanced", "Loan count per month × tenure", "x5", "Hea
 /* mark the tenure × score section to carry the guardrail panel */
 const tenureSec = SECTIONS.find((s) => s.name.includes("Tenure × score"));
 if (tenureSec) tenureSec.guardrails = true;
+/* mark the Returns & cashflow section to carry the P&L returns statement */
+const returnsSec = SECTIONS.find((s) => s.name.includes("Returns"));
+if (returnsSec) returnsSec.returnsStatement = true;
 
 /* ---------------- renderer ---------------- */
 const instances = {};
@@ -933,6 +936,12 @@ function buildLayout() {
       g.className = "guardrails";
       g.id = "guardrails";
       cardsEl.appendChild(g);
+    }
+    if (sec.returnsStatement) {
+      const rs = document.createElement("div");
+      rs.className = "returns-statement";
+      rs.id = "returns-statement";
+      cardsEl.appendChild(rs);
     }
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -1002,6 +1011,67 @@ function renderGuardrails() {
   el.innerHTML = `<div class="rail-note">💡 Guardrails are computed live from the currently filtered data — a rules engine over the tenure × score tables above.</div>` + cards.join("");
 }
 
+/* ---------------- P&L returns statement (computed) ---------------- */
+function renderReturnsStatement() {
+  const el = document.getElementById("returns-statement");
+  if (!el) return;
+  const L = filtered();
+  const disb = L.reduce((s, l) => s + (l.amount || 0), 0);
+  const recv = L.reduce((s, l) => s + (l.total_received || 0), 0);
+  const prin = L.reduce((s, l) => s + (l.principal_received || 0), 0);
+  const intr = L.reduce((s, l) => s + (l.interest_received || 0), 0);
+  const fee = L.reduce((s, l) => s + (l.platform_fee || 0), 0);
+  const npaLoss = L.filter((l) => l.status === "NPA").reduce((s, l) => s + (l.npa_amount || 0), 0);
+  const closed = L.filter((l) => l.status === "CLOSED");
+  const cIntr = closed.reduce((s, l) => s + (l.interest_received || 0), 0);
+  const cFee = closed.reduce((s, l) => s + (l.platform_fee || 0), 0);
+  const outstanding = disb - prin - npaLoss;
+  const net = intr - fee;
+  const netAll = net - npaLoss;
+  const pct = (a, b) => (b > 0 ? ((a / b) * 100).toFixed(2) + "%" : "—");
+  const row = (k, v, cls) => `<div class="rs-row"><span class="rs-k">${k}</span><span class="rs-v ${cls || ""}">${v}</span></div>`;
+  const pnl = `
+    <div class="rs-block rs-block-pnl"><h4>Profit &amp; loss statement</h4>
+      ${row("Total disbursed (invested)", inr(disb))}
+      ${row("Total received", inr(recv))}
+      ${row("&nbsp;&nbsp;→ Principal repaid", inr(prin))}
+      ${row("&nbsp;&nbsp;→ Interest earned", inr(intr), "rs-good")}
+      ${row("Platform / facilitation fees", "− " + inr(fee), "rs-bad")}
+      ${row("NPA principal written off", "− " + inr(npaLoss), "rs-bad")}
+      ${row("Net earnings (interest − fees)", inr(net), "rs-good")}
+      ${row("Net after NPA loss", inr(netAll), netAll >= 0 ? "rs-good" : "rs-bad")}
+      ${row("Outstanding principal at risk", inr(outstanding), "rs-warn")}
+    </div>`;
+  const roi = `
+    <div class="rs-block"><h4>Return on invested capital</h4>
+      ${row("Gross ROI (interest ÷ disbursed)", pct(intr, disb))}
+      ${row("Net ROI (after fees)", pct(net, disb))}
+      ${row("Net ROI after NPA loss", pct(netAll, disb))}
+      ${row("Realized on closed loans only", pct(cIntr - cFee, closed.reduce((s, l) => s + (l.amount || 0), 0)))}
+      ${row("Fees as % of interest earned", pct(fee, intr))}
+      ${row("NPA loss as % of disbursed", pct(npaLoss, disb))}
+    </div>`;
+  const TEN = [2, 3, 4, 5, 6, 12];
+  const rows = TEN.map((t) => {
+    const r = L.filter((l) => l.tenure === t);
+    if (!r.length) return null;
+    const d = r.reduce((s, l) => s + (l.amount || 0), 0);
+    const i = r.reduce((s, l) => s + (l.interest_received || 0), 0);
+    const f = r.reduce((s, l) => s + (l.platform_fee || 0), 0);
+    const n = r.filter((l) => l.status === "NPA").reduce((s, l) => s + (l.npa_amount || 0), 0);
+    const netR = i - f - n;
+    const ann = d > 0 ? ((netR / d) * (12 / t) * 100).toFixed(1) + "%" : "—";
+    const w = Math.min(100, Math.max(2, d > 0 ? (netR / d) * (12 / t) * 100 * 3 : 0));
+    return `<div class="rs-tenrow"><span class="rs-ten">${t} mo</span><span class="rs-tenbar"><i style="width:${w}%"></i></span><span class="rs-tenv">${ann}</span></div>`;
+  }).filter(Boolean).join("");
+  const ten = `
+    <div class="rs-block"><h4>Annualized net return by tenure (turnover-adjusted)</h4>
+      ${rows}
+      <div class="rs-note">2–5 month money recycles 2–6× a year; 6–12 month locks up capital. Higher short-term tenures compound faster.</div>
+    </div>`;
+  el.innerHTML = `<div class="rs-grid">${pnl}${roi}${ten}</div>`;
+}
+
 function renderAll() {
   const L = filtered();
   SECTIONS.forEach((sec) => {
@@ -1016,6 +1086,7 @@ function renderAll() {
     });
   });
   renderGuardrails();
+  renderReturnsStatement();
 }
 
 /* make every tooltip formatter immune to axis-vs-item params shape */

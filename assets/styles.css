@@ -121,6 +121,30 @@ body {
 .chart-head .chart-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .chart-body { flex: 1; min-height: 280px; width: 100%; }
 
+/* ---------- returns statement ---------- */
+.returns-statement {
+  margin: 0 0 14px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(51, 65, 85, 0.45);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.rs-block { background: rgba(2, 6, 23, 0.45); border: 1px solid rgba(51, 65, 85, 0.35); border-radius: 10px; padding: 12px 14px; }
+.rs-block h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
+.rs-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; font-size: 13px; color: #cbd5e1; }
+.rs-k { color: #94a3b8; }
+.rs-v { font-weight: 600; font-variant-numeric: tabular-nums; color: #e2e8f0; }
+.rs-v.rs-good { color: var(--green); }
+.rs-v.rs-bad { color: #f87171; }
+.rs-v.rs-warn { color: var(--amber); }
+.rs-tenrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.rs-ten { width: 34px; font-size: 12px; color: #94a3b8; }
+.rs-tenbar { flex: 1; height: 8px; background: rgba(30, 41, 59, 0.8); border-radius: 6px; overflow: hidden; }
+.rs-tenbar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #2563eb, #22c55e); }
+.rs-tenv { width: 46px; text-align: right; font-size: 12px; font-weight: 700; color: #22c55e; font-variant-numeric: tabular-nums; }
+.rs-note { margin-top: 8px; font-size: 11px; color: #64748b; line-height: 1.5; }
+
 /* ---------- guardrails ---------- */
 .guardrails {
   display: grid; gap: 12px; margin: 4px 0 16px;
