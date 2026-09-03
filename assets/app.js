@@ -1094,7 +1094,48 @@ function renderReturnsStatement() {
       ${rows}
       <div class="rs-note">2–5 month money recycles 2–6× a year; 6–12 month locks up capital. Higher short-term tenures compound faster.</div>
     </div>`;
-  el.innerHTML = `<div class="rs-grid">${pnl}${roi}${ten}</div>`;
+
+  /* ---- projected full-cycle (everything included) ---- */
+  const activeL = L.filter((l) => l.status === "ACTIVE");
+  const feeRate = {};
+  TENURES.forEach((t) => {
+    const c = L.filter((l) => l.status === "CLOSED" && l.tenure === t);
+    const d = c.reduce((s, l) => s + (l.amount || 0), 0);
+    feeRate[t] = d ? c.reduce((s, l) => s + (l.platform_fee || 0), 0) / d : 0;
+  });
+  const matRate = {};
+  TENURES.forEach((t) => {
+    const m = L.filter((l) => l.tenure === t && (l.status === "CLOSED" || l.status === "NPA"));
+    matRate[t] = m.length ? (100 * m.filter((l) => l.status === "NPA").length) / m.length : 0;
+  });
+  let futInt = 0, futFee = 0;
+  const outByT = {};
+  activeL.forEach((l) => {
+    const t = l.tenure;
+    futInt += Math.max(0, (l.total_repayment || 0) - (l.amount || 0) - (l.interest_received || 0));
+    futFee += Math.max(0, (l.amount || 0) * (feeRate[t] || 0.0172) - (l.platform_fee || 0));
+    outByT[t] = (outByT[t] || 0) + (l.amount || 0) - (l.principal_received || 0);
+  });
+  const outstandingT = Object.keys(outByT).reduce((s, t) => s + outByT[t], 0);
+  let expLoss = 0, wLoss = 0;
+  Object.keys(outByT).forEach((t) => { expLoss += outByT[t] * (matRate[t] || 0) / 100; wLoss += outByT[t]; });
+  const defRate = wLoss ? 100 * expLoss / wLoss : 0;
+  const projectedNet = netAll + futInt * (1 - defRate / 100) - futFee - expLoss;
+  const projRoi = disb ? (100 * projectedNet / disb) : 0;
+  const scen = (dr) => { const l = outstandingT * dr; return netAll + futInt * (1 - dr) - futFee - l; };
+  const scenNet = [0, defRate / 100, 0.2, 0.35].map((dr) => scen(dr));
+  const scenRoi = scenNet.map((n) => (disb ? (100 * n / disb).toFixed(1) : "—"));
+  const proj = `
+    <div class="rs-block rs-block-proj"><h4>Projected full-cycle — everything included</h4>
+      ${row("Active-book outstanding at risk", inr(outstandingT), "rs-warn")}
+      ${row("Future interest still to earn", inr(futInt), "rs-good")}
+      ${row("Future platform fees", "− " + inr(futFee), "rs-bad")}
+      ${row("Expected future NPA loss (your historical rates " + defRate.toFixed(1) + "%)", "− " + inr(expLoss), "rs-bad")}
+      ${row("Expected full-cycle net (realized + projected)", inr(projectedNet), "rs-good")}
+      ${row("Expected full-cycle net ROI", pct(projectedNet, disb), "rs-good")}
+      <div class="rs-note">Scenarios — net ROI if the ${fmt.format(activeL.length)} active loans default at: 0% <b>${scenRoi[0]}%</b> · historical ${defRate.toFixed(1)}% <b>${scenRoi[1]}%</b> · 20% <b>${scenRoi[2]}%</b> · 35% <b>${scenRoi[3]}%</b>. Projection uses contracted repayments and fee schedules from closed loans; real results depend on future defaults.</div>
+    </div>`;
+  el.innerHTML = `<div class="rs-grid">${pnl}${roi}${ten}${proj}</div>`;
 }
 
 function renderAll() {
