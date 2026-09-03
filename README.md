@@ -1,12 +1,14 @@
 # 💚 LenDenClub Loan Analytics Dashboard
 
-Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — exactly 50 charts (of 83 defined, pruned to the decision-relevant set), KPIs, recommendation panels and a full loan register. Every chart shown answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
+Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — 60 curated charts (of 88 defined) plus gauge dials, a plain-HTML tenure × score risk matrix, KPIs, recommendation panels and a full loan register. Every view answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
+
+The curated set is **not fixed at 50** — more charts and other forms (gauges, tables, matrices) are added by listing their ids in one file (`assets/js/curation.js`).
 
 **Pure static site** — data ships as `data/*.js` globals and ECharts is vendored locally, so the page also works by double-clicking `index.html` directly from `file://` (no build, no server, no internet).
 
 **Live:** https://chirag127.github.io/lendenclub-loan-dashboard/
 
-![Charts](https://img.shields.io/badge/charts-50%20(decision%20view)-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-pure%20static%20html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F30%20checks%20passed-brightgreen)
+![Charts](https://img.shields.io/badge/charts-60%20curated-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-pure%20static%20html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F30%20checks%20passed-brightgreen)
 
 ## The data
 
@@ -40,28 +42,28 @@ Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club Indi
 - **Recovery is strong:** cumulative principal received has tracked cumulative disbursements closely, and 100% of interest/fees received to date total ₹2.53L vs ₹45.1K paid in platform fees.
 - 24 daily-repayment loans vs 2,969 monthly — daily loans are the minority, mostly 2-month tenures.
 
-## Dashboard features — a decision flow, 50 charts in 6 sections
+## Dashboard features — a decision flow, 60 charts in 6 sections (not a fixed cap)
 
-Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → watch-outs → verdict.**
+Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → watch-outs → verdict.** Charts are one form of showing the data; the dashboard also uses **ECharts gauge dials** and **plain-HTML tables** (loan register + the tenure × score risk matrix) wherever a table or dial reads better than a chart.
 
 - **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate, active/closed/NPA counts, DPD exposure
 - **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 30 checks (22 PASS · 8 notes · 0 FAIL), regenerated on every build
-- **50 interactive charts** (Apache ECharts) in 6 sections:
-  - *The book at a glance* (7) — status split, money in the portfolio, repayment-type split, monthly disbursed ₹, monthly disbursed by tenure, tenure distribution, disbursed ₹ by tenure
+- **60 interactive charts** (Apache ECharts) in 6 sections + extra forms:
+  - *The book at a glance* (8) — status split, money in the portfolio, repayment-type split, monthly disbursed ₹, monthly disbursed by tenure, tenure distribution, disbursed ₹ by tenure + **three gauge dials** (net XIRR incl. defaults, NPA rate, NPA recovery)
   - *Borrower supply & ticket sizes* (4) — avg ticket by tenure, score histogram, avg score by month (is quality trending?), avg ticket by score band (high scores = bigger loans)
-  - *What loans actually pay — net of fees & defaults* (12) — P&L/ROI/annualized statement panel, XIRR by tenure (successful vs **incl. all defaults**), simple-vs-XIRR and amortization explainers, realized-vs-projected net ROI by tenure, the full rate ladder (sticker → fees → defaults → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, **projected net-ROI heatmap (tenure × score)**, default-rate sensitivity, net ₹ per loan by tenure
-  - *Where loans default — risk by tenure × score* (13) — NPA counts/₹/rates by month, NPA rate by tenure & score band, NPA heatmap tenure × score + loan-count denominator, loss-rate ₹ by tenure, share of loans vs NPAs, interest vs NPA loss, matured-only default rates, and score-tier behaviour + **5 auto-computed lending guardrail cards**
-  - *Cashflow & watch-outs* (12) — received/interest/P&L by month, recovery rate, cumulative received vs disbursed, expected future EMI receipts, active-book expected-vs-received and **projected net XIRR** (`active_xirr()`), active ₹ exposure, overdue share & DPD severity
+  - *What loans actually pay — net of fees & defaults* (15) — P&L/ROI/annualized statement panel, XIRR by tenure (successful vs **incl. all defaults**), simple-vs-XIRR and amortization explainers, realized-vs-projected net ROI by tenure, the full rate ladder (sticker → fees → defaults → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, **projected net-ROI heatmap (tenure × score)**, default-rate sensitivity, net ₹ per loan by tenure, **net-XIRR matrix heatmap (tenure × score)**, contracted-vs-collected interest by tenure, and the money-map bubble
+  - *Where loans default — risk by tenure × score* (14 + **risk-matrix table**) — NPA counts/₹/rates by month, NPA rate by tenure & score band, NPA heatmap tenure × score + loan-count denominator, loss-rate ₹ by tenure, share of loans vs NPAs, interest vs NPA loss, matured-only default rates, score-tier behaviour, risk-vs-return bubbles + **5 auto-computed lending guardrail cards** + a plain-HTML **tenure × score risk reference table** (every cell: loans, NPA %, matured default %, loss % — no cell hidden)
+  - *Cashflow & watch-outs* (17) — received/interest/P&L by month, recovery rate, cumulative received vs disbursed, expected vs received, expected future EMI receipts, active-book expected-vs-received and **projected net XIRR** (`active_xirr()`), active ₹ exposure by tenure **and by origination month**, overdue share, avg DPD and 30/60/90-day severity, **NPA recovery by tenure**
   - *The verdict — lend only these* (2 + 2 panels) — the **Highest-XIRR loan picks panel** (every tenure × score cell with ≥10 completed loans ranked by net XIRR incl. all defaults, tiered Core/Support/Avoid, per-₹1,000 split from `xirr_picks()`), allocation donut, successful-vs-defaults chart, the **“Lend only these” verdict strip** and **14 plain-language reason cards** (every figure read live from the data globals: why 2–3 month wins, why 12-month loses, why 6-month below 750 is the NPA engine, the 67.7 → 53.2 → 22.2% ladder, and risk = time × borrower quality)
 - **Live filters** — status chips, repayment type, single-month data window (charts + KPIs + table react)
 - **Sortable, searchable loan register** — all 2,993 loans (loan ID, order ID, dates, amount, status, rate, tenure, score, DPD, received, interest, P&L)
 
-The other 33 chart definitions (seasonality, status treemaps, correlations, pure monthly actuals…) remain in `assets/js/charts/*.js` but are **not rendered** — the dashboard stays 100% focused on picking loans. The render set is curated in one place (`curation.js`); to show or hide a chart, edit its id in that file's group lists.
+The remaining 28 chart definitions (seasonality, status treemaps, correlations, pure monthly actuals…) stay in `assets/js/charts/*.js` but are **not rendered**. Nothing is hard-capped: the render set is curated in one place (`assets/js/curation.js`) — add a chart id to a group and it shows; add a new `addChart(...)` and it becomes available there too.
 
 ## Repo structure
 
 ```
-├── index.html            # dashboard page (v8 — loads data globals + modular JS)
+├── index.html            # dashboard page (v9 — loads data globals + modular JS)
 ├── assets/
 │   ├── echarts.min.js    # ECharts vendored locally (Apache-2.0)
 │   ├── styles.css        # dark theme

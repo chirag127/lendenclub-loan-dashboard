@@ -1,15 +1,18 @@
 /* ============================================================
  * curation.js — DECISION VIEW
- * Rebuilds SECTIONS from the registry into the 6-section decision flow and the exact 50 rendered
- * charts. Runs after all chart files; its id lists are the single source of truth for what shows.
+ * Rebuilds SECTIONS from the registry into the 6-section decision flow and the curated render set
+ * (currently 60 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
+ * source of truth for what shows.
  * ------------------------------------------------------------
  * Classic script (no ES modules — must keep working from file://).
  * Load order is fixed in index.html; see assets/js/README too.
  * ============================================================ */
 
-/* ============ DECISION VIEW — curate the dashboard to exactly the charts that answer "which loans should I fund?" ============
-   All 83 chart definitions above stay in the codebase (nothing is deleted), but only the 50 decision-relevant
-   ones below render, re-grouped into a decision flow: glance -> supply -> returns -> risk -> cashflow/watch-outs -> verdict.
+/* ============ DECISION VIEW — the curated set that answers "which loans should I fund?" ============
+   All 88 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
+   decision flow: glance -> supply -> returns -> risk -> cashflow/watch-outs -> verdict. The count is not
+   fixed at 50 — more charts and other forms (gauges, tables, matrices) are added by listing them here.
    Everything shown nets out fees + NPAs or feeds the risk/returns math behind the picks. */
 (function curateDecisionView() {
   const byId = {};
@@ -18,7 +21,7 @@
     {
       name: "The book at a glance",
       sub: "Book size, tenure mix, repayment type and how fast money goes out each month — the base facts before every decision.",
-      ids: ["g1", "g2", "g3", "d1", "d7", "c4", "c5"],
+      ids: ["g1", "g2", "g3", "d1", "d7", "c4", "c5", "dg1"],
     },
     {
       name: "Borrower supply & ticket sizes",
@@ -28,19 +31,20 @@
     {
       name: "What loans actually pay — net of fees & defaults",
       sub: "Every return here already subtracts platform fees and the NPA book: simple ROI and money-weighted XIRR with monthly-EMI timing, by tenure and by score band, the full rate ladder and what a ₹1,000 loan really nets.",
-      ids: ["rt1", "rt3", "rt5", "nr1", "nr2", "nr3", "nr4", "nr5", "nr6", "nr7", "nr8", "nr10"],
+      ids: ["rt1", "rt3", "rt5", "nr1", "nr2", "nr3", "nr4", "nr5", "nr6", "nr7", "nr8", "nr10", "dx1", "dx3", "nr11"],
       returnsStatement: true,
     },
     {
       name: "Where loans default — risk by tenure × score",
       sub: "Matured-only default rates (NPA ÷ closed+NPA), the NPA heatmaps by tenure × score band, and how much of each tenure's interest NPAs erase — the risk side of every pick below.",
-      ids: ["r1", "r2", "r3", "r4", "r5", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"],
+      ids: ["r1", "r2", "r3", "r4", "r5", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9"],
       guardrails: true,
+      riskMatrix: true,
     },
     {
       name: "Cashflow & watch-outs",
       sub: "What actually comes in each month, what the active book is projected to return, and the overdue pipeline that will decide your next default bill.",
-      ids: ["i1", "i3", "i5", "i6", "i7", "rt2", "rt4", "rt6", "n10", "n11", "r6", "r8"],
+      ids: ["i1", "i3", "i5", "i6", "i7", "rt2", "rt4", "rt6", "n10", "n11", "r6", "r8", "dx2", "dx4", "n12", "i8", "r7"],
     },
     {
       name: "The verdict — lend only these",
@@ -57,6 +61,7 @@
     if (g.returnsStatement) sec.returnsStatement = true;
     if (g.loanPicks) sec.loanPicks = true;
     if (g.why) sec.why = true;
+    if (g.riskMatrix) sec.riskMatrix = true;
     SECTIONS.push(sec);
   });
 })();

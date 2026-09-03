@@ -28,6 +28,12 @@ function buildLayout() {
       rs.id = "returns-statement";
       cardsEl.appendChild(rs);
     }
+    if (sec.riskMatrix) {
+      const mx = document.createElement("div");
+      mx.className = "risk-matrix";
+      mx.id = "risk-matrix";
+      cardsEl.appendChild(mx);
+    }
     if (sec.loanPicks) {
       const lp = document.createElement("div");
       lp.className = "loan-picks";
@@ -69,6 +75,7 @@ function renderAll() {
   renderGuardrails();
   renderReturnsStatement();
   renderLoanPicks();
+  renderRiskMatrix();
 }
 
 /* make every tooltip formatter immune to axis-vs-item params shape */

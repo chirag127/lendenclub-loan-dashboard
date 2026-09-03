@@ -243,7 +243,12 @@ const VAL_AXIS = (money) => ({
   type: "value", axisLabel: { color: "#8fa3c0", formatter: money ? (v) => inrCompact(v) : (v) => fmt.format(v) },
   splitLine: { lineStyle: { color: "rgba(31,46,74,0.5)" } },
 });
-const MLABELS = MONTHS.map((m) => MONTH_LABEL[m] || m);
+/* MLABELS must be LIVE: MONTHS is only populated at runtime (init), so a load-time const would stay empty
+   and every month axis would lose its labels. A global getter re-derives it on each access. */
+Object.defineProperty(globalThis, "MLABELS", {
+  configurable: true,
+  get() { return MONTHS.map((m) => MONTH_LABEL[m] || m); },
+});
 const tooltipMoney = (prefix) => ({ valueFormatter: (v) => (prefix || "") + inr(v) });
 
 /* ---------------- visual polish — richer use of the ECharts library ----------------
