@@ -236,6 +236,94 @@ const VAL_AXIS = (money) => ({
 const MLABELS = MONTHS.map((m) => MONTH_LABEL[m] || m);
 const tooltipMoney = (prefix) => ({ valueFormatter: (v) => (prefix || "") + inr(v) });
 
+/* ---------------- visual polish — richer use of the ECharts library ----------------
+   Applied to every chart option before render: glassy tooltips with crosshair
+   pointers, vertical gradients on bars, hover emphasis on all series types,
+   smooth animation/transitions and dataZoom for long category axes. */
+function lighten(hex, f) {
+  if (typeof hex !== "string" || hex[0] !== "#" || hex.length !== 7) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const m = (c) => Math.round(c + (255 - c) * f);
+  return "rgb(" + m((n >> 16) & 255) + "," + m((n >> 8) & 255) + "," + m(n & 255) + ")";
+}
+function grad(c) {
+  return { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: lighten(c, 0.32) }, { offset: 1, color: c }] };
+}
+function polish(opt) {
+  /* accessibility + smooth animation */
+  opt.aria = { enabled: true, decal: { show: false } };
+  opt.animation = true;
+  opt.animationDuration = 900;
+  opt.animationEasing = "cubicOut";
+  opt.animationDurationUpdate = 600;
+  opt.animationEasingUpdate = "cubicInOut";
+
+  /* rich glassy tooltip + crosshair pointer (keeps each chart's formatter/position) */
+  const tt = opt.tooltip || {};
+  const trigger = tt.trigger || "axis";
+  opt.tooltip = {
+    ...tt, trigger,
+    confine: true,
+    backgroundColor: "rgba(13,23,42,0.95)",
+    borderColor: "#2b3c5e",
+    borderWidth: 1,
+    padding: [10, 14],
+    textStyle: { color: "#e6edf7", fontSize: 12 },
+    extraCssText: "box-shadow: 0 12px 34px rgba(0,0,0,0.5); border-radius: 10px; backdrop-filter: blur(8px);",
+    axisPointer: trigger === "item" ? { type: "shadow", shadowStyle: { color: "rgba(59,130,246,0.12)" } } : {
+      type: "cross",
+      lineStyle: { color: "#4a6fa5", type: "dashed", opacity: 0.55 },
+      crossStyle: { color: "#4a6fa5", type: "dashed" },
+      label: { backgroundColor: "#1d2b45", borderColor: "#2b3c5e", color: "#e6edf7", fontSize: 10, padding: [3, 7] },
+    },
+  };
+
+  /* legend polish */
+  if (opt.legend) opt.legend = { ...opt.legend, icon: opt.legend.icon || "roundRect", itemWidth: 12, itemHeight: 12, itemGap: 16, textStyle: { color: "#8fa3c0", fontSize: 11 } };
+
+  /* per-series upgrades */
+  (opt.series || []).forEach((s) => {
+    if (!s || !s.type) return;
+    if (s.type === "bar") {
+      const ic = s.itemStyle && s.itemStyle.color;
+      if (typeof ic === "string") s.itemStyle = { ...(s.itemStyle || {}), color: grad(ic) };
+      if (Array.isArray(s.data)) s.data = s.data.map((d) => {
+        if (d && typeof d === "object" && d.itemStyle && typeof d.itemStyle.color === "string")
+          return { ...d, itemStyle: { ...d.itemStyle, color: grad(d.itemStyle.color) } };
+        return d;
+      });
+      s.emphasis = { ...(s.emphasis || {}), itemStyle: { ...((s.emphasis && s.emphasis.itemStyle) || {}), shadowBlur: 12, shadowColor: "rgba(0,0,0,0.45)" } };
+      s.universalTransition = { enabled: true };
+    } else if (s.type === "line") {
+      s.symbol = s.symbol || "circle";
+      s.emphasis = { ...(s.emphasis || {}), focus: "series", itemStyle: { ...((s.emphasis && s.emphasis.itemStyle) || {}), shadowBlur: 14, shadowColor: "rgba(0,0,0,0.5)" }, lineStyle: { ...((s.emphasis && s.emphasis.lineStyle) || {}), width: ((s.lineStyle && s.lineStyle.width) || 2) + 1 } };
+      s.universalTransition = { enabled: true };
+    } else if (s.type === "pie") {
+      s.itemStyle = { ...(s.itemStyle || {}), shadowBlur: 14, shadowColor: "rgba(0,0,0,0.4)" };
+      s.emphasis = { ...(s.emphasis || {}), scale: true, scaleSize: 8, itemStyle: { ...((s.emphasis && s.emphasis.itemStyle) || {}), shadowBlur: 20, shadowColor: "rgba(0,0,0,0.55)" } };
+      s.labelLine = s.labelLine || { length: 12, length2: 10, lineStyle: { color: "#3a4d6e" } };
+    } else if (s.type === "heatmap") {
+      s.itemStyle = { ...(s.itemStyle || {}), borderColor: "#0b1220", borderWidth: 2 };
+      s.emphasis = { ...(s.emphasis || {}), itemStyle: { ...((s.emphasis && s.emphasis.itemStyle) || {}), shadowBlur: 10, shadowColor: "rgba(0,0,0,0.6)", borderColor: "#e6edf7", borderWidth: 1.5 } };
+    } else if (s.type === "scatter") {
+      s.emphasis = { ...(s.emphasis || {}), scale: 1.5, itemStyle: { ...((s.emphasis && s.emphasis.itemStyle) || {}), shadowBlur: 14, shadowColor: "rgba(0,0,0,0.45)" } };
+    }
+  });
+
+  /* dataZoom (slider + wheel) for long category charts, e.g. the 14-month EMI timeline */
+  const xas = Array.isArray(opt.xAxis) ? opt.xAxis : opt.xAxis ? [opt.xAxis] : [];
+  const cats = xas[0] && xas[0].type === "category" && Array.isArray(xas[0].data) ? xas[0].data : null;
+  const hasBarLine = (opt.series || []).some((s) => s && (s.type === "bar" || s.type === "line"));
+  if (cats && cats.length >= 12 && hasBarLine && !opt.dataZoom) {
+    opt.dataZoom = [
+      { type: "slider", height: 16, bottom: 2, borderColor: "#1f2e4a", backgroundColor: "rgba(15,26,46,0.5)", fillerColor: "rgba(59,130,246,0.25)", handleStyle: { color: "#3b82f6", borderColor: "#3b82f6" }, moveHandleStyle: { color: "#3b82f6" }, textStyle: { color: "#8fa3c0", fontSize: 10 }, dataBackground: { lineStyle: { color: "#2b3c5e" }, areaStyle: { color: "rgba(43,60,94,0.3)" } } },
+      { type: "inside", zoomOnMouseWheel: true, moveOnMouseMove: true },
+    ];
+    if (opt.grid && opt.grid.bottom <= 34) opt.grid = { ...opt.grid, bottom: 42 };
+  }
+  return opt;
+}
+
 /* ---------------- chart registry ---------------- */
 const SECTIONS = [];
 
@@ -1644,7 +1732,7 @@ function renderAll() {
         instances[c.id] = inst;
         window.addEventListener("resize", () => inst.resize());
       }
-      inst.setOption(safeTooltip(c.builder(L, SUMMARY)), true);
+      inst.setOption(safeTooltip(polish(c.builder(L, SUMMARY))), true);
     });
   });
   renderGuardrails();
