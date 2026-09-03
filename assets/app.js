@@ -1145,6 +1145,38 @@ addChart("Cashflow timing & true returns", "Why monthly EMIs change the answer",
   };
 });
 
+addChart("Cashflow timing & true returns", "EMIs often don't arrive on schedule — the collection reality of the active book", "rt4", "Active loans: expected vs received to date by tenure", "Contractual EMIs due so far vs what actually arrived, per tenure", 320, (L) => {
+  const asOf = (SUMMARY && SUMMARY.summary && SUMMARY.summary.to_date) || "2026-09-02";
+  const y0 = +asOf.slice(0, 4), m0 = +asOf.slice(5, 7);
+  const rows = TENURES.map((t) => {
+    const a = L.filter((l) => l.tenure === t && l.status === "ACTIVE" && l.repayment_start);
+    if (!a.length) return null;
+    let exp = 0, got = 0, dpd = 0;
+    a.forEach((l) => {
+      const emi = (l.total_repayment || 0) / (l.tenure || 1);
+      const ys = +l.repayment_start.slice(0, 4), ms = +l.repayment_start.slice(5, 7);
+      const due = Math.max(0, Math.min(Math.round(l.tenure || 0), (y0 - ys) * 12 + (m0 - ms) + 1));
+      exp += emi * due;
+      got += l.total_received || 0;
+      if ((l.dpd || 0) > 0) dpd += 1;
+    });
+    return { t, exp, got, shortfall: exp - got, dpd };
+  }).filter(Boolean);
+  return {
+    ...baseOption(),
+    legend: { ...baseOption().legend, data: ["Expected by now", "Actually received"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => {
+      const r = rows.find((x) => x.t + " mo" === ps[0].axisValue);
+      return ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + inr(p.value) + "</b>").join("<br/>") + (r ? "<br/>Shortfall <b style='color:#f87171'>" + inr(Math.max(0, r.shortfall)) + "</b> · " + r.dpd + " loans overdue" : "");
+    } },
+    xAxis: CAT_AXIS(rows.map((r) => r.t + " mo")), yAxis: VAL_AXIS(true),
+    series: [
+      { name: "Expected by now", type: "bar", barWidth: "30%", data: rows.map((r) => +r.exp.toFixed(0)), itemStyle: { color: "#64748b", borderRadius: [5, 5, 0, 0] } },
+      { name: "Actually received", type: "bar", barWidth: "30%", data: rows.map((r) => +r.got.toFixed(0)), itemStyle: { color: (p) => (rows[p.dataIndex].shortfall > 0 ? AMBER : GREEN), borderRadius: [5, 5, 0, 0] } },
+    ],
+  };
+});
+
 addChart("Correlations & advanced", "One point per loan", "x1", "Loan amount vs interest rate", "Do bigger loans carry better rates?", 320, (L) => {
   const pts = L.filter((l) => (l.amount || 0) > 0 && l.interest_rate != null).map((l) => [l.amount, l.interest_rate]);
   return {
