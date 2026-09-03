@@ -1177,6 +1177,39 @@ addChart("Cashflow timing & true returns", "EMIs often don't arrive on schedule 
   };
 });
 
+addChart("Cashflow timing & true returns", "Equal monthly EMIs, interest front-loaded, first EMI 1–2 months after disbursement", "rt5", "How a typical loan amortizes (₹1,000 · 6 months)", "Illustrative internal split consistent with the report's contracted totals", 340, (L) => {
+  const P = 1000, n = 6, total = 1238.70;
+  const emi = total / n;
+  let lo = 0.0001, hi = 0.3;
+  for (let k = 0; k < 200; k++) {
+    const r = (lo + hi) / 2;
+    const e = P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+    if (e > emi) hi = r; else lo = r;
+  }
+  const r = (lo + hi) / 2;
+  let bal = P, ints = [], prin = [], balLeft = [];
+  for (let i = 0; i < n; i++) {
+    const ip = bal * r, pp = emi - ip;
+    bal -= pp;
+    ints.push(+ip.toFixed(2)); prin.push(+pp.toFixed(2)); balLeft.push(+Math.max(0, bal).toFixed(2));
+  }
+  return {
+    ...baseOption(),
+    legend: { ...baseOption().legend, data: ["Principal part", "Interest part", "Balance left"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => {
+      const i = ps[0].dataIndex;
+      return "EMI #" + (i + 1) + " (₹" + emi.toFixed(2) + ")<br/>" + ps.filter((p) => p.seriesType === "bar").map((p) => p.marker + " " + p.seriesName + ": <b>₹" + p.value.toFixed(2) + "</b>").join("<br/>") + "<br/>Balance left: <b>₹" + balLeft[i] + "</b>";
+    } },
+    xAxis: CAT_AXIS([1, 2, 3, 4, 5, 6].map((i) => "EMI " + i)),
+    yAxis: VAL_AXIS(true),
+    series: [
+      { name: "Principal part", type: "bar", stack: "emi", barWidth: "46%", data: prin, itemStyle: { color: GREEN } },
+      { name: "Interest part", type: "bar", stack: "emi", data: ints, itemStyle: { color: AMBER } },
+      { name: "Balance left", type: "line", yAxisIndex: 0, data: balLeft, itemStyle: { color: CYAN }, lineStyle: { width: 2.5, type: "dashed" }, symbol: "circle", symbolSize: 6 },
+    ],
+  };
+});
+
 addChart("Correlations & advanced", "One point per loan", "x1", "Loan amount vs interest rate", "Do bigger loans carry better rates?", 320, (L) => {
   const pts = L.filter((l) => (l.amount || 0) > 0 && l.interest_rate != null).map((l) => [l.amount, l.interest_rate]);
   return {
