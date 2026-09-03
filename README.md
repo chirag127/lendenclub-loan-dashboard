@@ -4,7 +4,7 @@ Interactive analytics dashboard for a **LenDenClub (Lending Club India) manual l
 
 **Live:** https://chirag127.github.io/lendenclub-loan-dashboard/
 
-![Charts](https://img.shields.io/badge/charts-64-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F29%20checks%20passed-brightgreen)
+![Charts](https://img.shields.io/badge/charts-75-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F29%20checks%20passed-brightgreen)
 
 ## The data
 
@@ -42,14 +42,15 @@ Interactive analytics dashboard for a **LenDenClub (Lending Club India) manual l
 
 - **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate (simple + weighted), active/closed/NPA counts, DPD exposure
 - **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 29 checks, green ✅/ℹ️/❌ per check, regenerated on every build
-- **64 interactive charts** (Apache ECharts) in 8 sections:
+- **75 interactive charts** (Apache ECharts) in 9 sections:
   - *Portfolio overview* — status split, money in the portfolio, repayment-type split, rate histogram
   - *Disbursement activity* — monthly/ cumulative/avg disbursement, weekday & day-of-month seasonality, tenure-stacked volumes
   - *Loan characteristics* — amount/rate/score/tenure distributions, score-vs-ticket-size, rate-vs-tenure
   - *Portfolio & status health* — status counts & share by month, avg amount/rate/score/tenure by status, status treemap
   - *Risk (NPA & DPD)* — NPA counts, amounts and rates by month/tenure/score band, DPD histogram & 30/60/90-day delinquency lines
   - *Tenure × score risk & guardrails* — NPA-rate & loan-count heatmaps, loss economics per tenure, matured-only default rates, risk-vs-return bubbles, active exposure, DPD by tenure + 5 auto-computed lending guardrail cards
-  - *Returns & cashflow* — P&L statement + ROI + annualized return by tenure (turnover-adjusted), received/principal/interest/fees/P&L by month, cumulative received vs disbursed, recovery rate, expected vs received
+  - *Returns & cashflow* — P&L statement + ROI + annualized return by tenure (turnover-adjusted, realized to date) + projected full-cycle panel, received/principal/interest/fees/P&L by month, cumulative received vs disbursed, recovery rate, expected vs received
+  - *Net returns — after everything* — 11 charts where every number is net of fees + NPA: realized vs projected net ROI by tenure, the rate ladder (gross interest → fees → NPA → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, projected net ROI heatmap (tenure × score), default-rate sensitivity curve, net ₹ per loan, future net from the active book, contracted rate vs projected annualized net, and the money-map bubble chart
   - *Correlations & advanced* — amount×rate, score×rate, amount×score scatter plots + month×score and month×tenure heatmaps
 - **Live filters** — status chips, repayment type, single-month data window (all charts + KPIs + table react)
 - **Sortable, searchable loan register** — all 2,993 loans (loan ID, order ID, dates, amount, status, rate, tenure, score, DPD, received, interest, P&L)
