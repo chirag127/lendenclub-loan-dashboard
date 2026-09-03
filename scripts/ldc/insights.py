@@ -212,6 +212,111 @@ def xirr_returns(loans):
     }
 
 
+def active_xirr(loans):
+    """Projected net XIRR on the ACTIVE book (loans still repaying).
+
+    Closed-loan XIRR answers "what did completed cycles earn"; this answers
+    "what will the money still out there earn" by solving the same monthly-EMI
+    IRR on each active loan's expected future cashflows. Because the report has
+    no per-EMI dates, received money is spread evenly across the tenure's EMI
+    months — the same convention as ``xirr_returns``.
+
+    Per active loan (expected case):
+      * -amount out at disbursement (day 0);
+      * net inflow spread over the tenure's EMIs from repayment_start:
+        received + outstanding principal x (1 - matured default rate of that
+        tenure) + remaining contracted interest x that tenure's closed-loan
+        interest-collection rate (early-repayment rebates) - total fees
+        (platform fee paid + expected future fee on the outstanding);
+      * defaults therefore eat principal at each tenure's own matured rate and
+        future interest is haircut by how much interest closed loans actually
+        collected.
+
+    A "best case" variant is also emitted: same schedule but zero defaults on
+    the outstanding principal (collection haircut still applies).
+    """
+    closed = [l for l in loans if l["status"] == "CLOSED"
+              and l["disbursement_date"] and l["repayment_start"]
+              and (l["amount"] or 0) > 0 and (l["total_received"] or 0) > 0]
+    matured = [l for l in loans if l["status"] in ("CLOSED", "NPA")
+               and l["disbursement_date"] and l["repayment_start"]
+               and (l["amount"] or 0) > 0]
+    active = [l for l in loans if l["status"] == "ACTIVE"
+              and l["disbursement_date"] and l["repayment_start"]
+              and (l["amount"] or 0) > 0 and (l["total_repayment"] or 0) > 0]
+
+    def _rate(pool, key, denom_key):
+        out = {}
+        for t in TENURES:
+            r = [l for l in pool if l["tenure"] == t]
+            d = sum(l[denom_key] or 0 for l in r)
+            out[t] = (sum(l[key] or 0 for l in r) / d) if d else 0.0
+        return out
+
+    # matured default rate per tenure: NPA count / (closed + NPA) count
+    def_rate = {}
+    for t in TENURES:
+        m = [l for l in matured if l["tenure"] == t]
+        def_rate[t] = (100.0 * sum(1 for l in m if l["status"] == "NPA") / len(m)) if m else 0.0
+    # closed-loan interest collection rate per tenure
+    coll = {}
+    for t in TENURES:
+        r = [l for l in closed if l["tenure"] == t]
+        ci = sum((l["total_repayment"] or 0) - (l["amount"] or 0) for l in r)
+        ii = sum(l["interest_received"] or 0 for l in r)
+        coll[t] = (100.0 * ii / ci) if ci else 70.0
+    # fee rate per tenure (% of disbursed, on closed loans)
+    fee_rate = _rate(closed, "platform_fee", "amount")
+
+    def _loan_flows(l, default_on):
+        t = int(l["tenure"] or 1)
+        amt = l["amount"] or 0
+        rec = l["total_received"] or 0
+        prin = l["principal_received"] or 0
+        intr = l["interest_received"] or 0
+        outstanding = max(0.0, amt - prin)
+        fut_int = max(0.0, (l["total_repayment"] or 0) - amt - intr)
+        loss = outstanding * (def_rate[t] / 100.0) if default_on else 0.0
+        expected_in = rec + (outstanding - loss) + fut_int * (coll[t] / 100.0)
+        fee_paid = l["platform_fee"] or 0
+        fut_fee = max(0.0, amt * fee_rate[t] - fee_paid)
+        net_in = max(0.0, expected_in - fee_paid - fut_fee)
+        cf = [(0, -amt)]
+        emi = net_in / t
+        for i in range(1, t + 1):
+            d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
+            cf.append((d, emi))
+        return cf
+
+    def _irr_by(sel, default_on):
+        pooled, per = [], {}
+        for l in sel:
+            cf = _loan_flows(l, default_on)
+            pooled.extend(cf)
+            per.setdefault(int(l["tenure"]), []).extend(cf)
+        if not pooled:
+            return None, {}
+        return round(100 * _irr(_norm(pooled)), 1), {
+            str(t): round(100 * _irr(_norm(per[t])), 1) for t in per
+        }
+
+    port_exp, ten_exp = _irr_by(active, default_on=True)
+    port_best, ten_best = _irr_by(active, default_on=False)
+    return {
+        "loans_used": len(active),
+        "outstanding": round(sum((l["amount"] or 0) - (l["principal_received"] or 0)
+                                  for l in active), 2),
+        "portfolio_expected": port_exp,
+        "portfolio_no_default": port_best,
+        "by_tenure_expected": ten_exp,
+        "by_tenure_no_default": ten_best,
+        "note": "expected = received to date + outstanding principal minus the tenure's matured "
+                "default rate + remaining contracted interest haircut by the tenure's closed-loan "
+                "collection rate, minus platform fees; EMIs spread across the tenure's months "
+                "(report has no per-EMI dates), same convention as closed-loan XIRR",
+    }
+
+
 SCORE_PICK_BANDS = [
     (700, 725, "700–724"), (725, 750, "725–749"), (750, 775, "750–774"),
     (775, 100000, "775+"),

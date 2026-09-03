@@ -1,4 +1,4 @@
-/* LenDenClub Loan Analytics Dashboard — 52 charts, Apache ECharts */
+/* LenDenClub Loan Analytics Dashboard — 83 charts, Apache ECharts */
 "use strict";
 
 /* normalize ECharts tooltip params: always work on a non-empty array */
@@ -1216,6 +1216,22 @@ addChart("Cashflow timing & true returns", "Equal monthly EMIs, interest front-l
   };
 });
 
+addChart("Cashflow timing & true returns", "Closed loans are history — this is what the money still out there is projected to earn (same monthly-EMI timing, computed by the pipeline on each active loan's remaining schedule)", "rt6", "Active book: projected net XIRR by tenure", "Amber = expected (your own matured default rates + closed-loan interest-collection haircut, fees deducted). Grey = best case if every remaining EMI repays. Closed-loan bars are on rt1 for comparison", 320, () => {
+  const ax = window.INSIGHTS_DATA && window.INSIGHTS_DATA.active_xirr;
+  const rows = TENURES.filter((t) => ax && ax.by_tenure_expected && ax.by_tenure_expected[t] != null);
+  const v = (k) => rows.map((t) => (ax[k] && ax[k][t] != null ? ax[k][t] : null));
+  return {
+    ...baseOption(),
+    legend: { ...baseOption().legend, data: ["Active — expected (with defaults)", "Active — best case (all repay)"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value.toFixed(1) + "%/yr</b>").join("<br/>") },
+    xAxis: CAT_AXIS(rows.map((t) => t + " mo")), yAxis: VAL_AXIS(false),
+    series: [
+      { name: "Active — expected (with defaults)", type: "bar", barWidth: "34%", data: v("by_tenure_expected"), itemStyle: { color: AMBER, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#fbbf24", fontSize: 10, formatter: (p) => p.value.toFixed(1) + "%" }, markLine: { symbol: "none", lineStyle: { color: "#f59e0b", type: "dashed" }, data: [{ yAxis: ax.portfolio_expected, label: { color: "#fbbf24", fontSize: 10, formatter: "expected " + ax.portfolio_expected.toFixed(1) + "%/yr" } }] } },
+      { name: "Active — best case (all repay)", type: "bar", barWidth: "34%", data: v("by_tenure_no_default"), itemStyle: { color: "#64748b", opacity: 0.75, borderRadius: [6, 6, 0, 0] }, markLine: { symbol: "none", lineStyle: { color: "#94a3b8", type: "dotted" }, data: [{ yAxis: ax.portfolio_no_default, label: { color: "#94a3b8", fontSize: 10, formatter: "no-default " + ax.portfolio_no_default.toFixed(1) + "%/yr" } }] } },
+    ],
+  };
+});
+
 /* ============ Highest-XIRR loan picks (computed by the pipeline) ============ */
 addChart("Highest-XIRR loan picks", "Which tenure × score cells your completed loans say earn the most per year — net XIRR with every default included — and how to split next month's lending", "hp1", "Recommended split of your next ₹1,000", "Core picks weighted 2×, support 1× in the pipeline allocation — money-losing cells get ₹0", 320, () => {
   const p = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_picks;
@@ -1529,6 +1545,7 @@ function renderReturnsStatement() {
       ${row("Net ROI after NPA loss", pct(netAll, disb))}
       ${row("True annualized (XIRR — monthly EMI timing)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns ? window.INSIGHTS_DATA.xirr_returns.portfolio_net.toFixed(1) + "%/yr net" : "—"), "rs-good")}
       ${row("Net XIRR incl. all NPA defaults (success + NPA)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns && window.INSIGHTS_DATA.xirr_returns.portfolio_net_all != null ? "≈ " + window.INSIGHTS_DATA.xirr_returns.portfolio_net_all.toFixed(1) + "%/yr net" : "—"), "rs-warn")}
+      ${row("Active book — projected net XIRR (expected)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.active_xirr && window.INSIGHTS_DATA.active_xirr.portfolio_expected != null ? "≈ " + window.INSIGHTS_DATA.active_xirr.portfolio_expected.toFixed(1) + "%/yr net" : "—"), "rs-good")}
       ${row("Realized on closed loans only", pct(cIntr - cFee, closed.reduce((s, l) => s + (l.amount || 0), 0)))}
       ${row("Fees as % of interest earned", pct(fee, intr))}
       ${row("NPA loss as % of disbursed", pct(npaLoss, disb))}

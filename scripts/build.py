@@ -47,6 +47,7 @@ def main():
         "interest_collection_rates": insights.interest_collection_rates(loans),
         "xirr_returns": insights.xirr_returns(loans),
         "xirr_picks": insights.xirr_picks(loans),
+        "active_xirr": insights.active_xirr(loans),
         "expected_emi_timeline": insights.expected_emi_timeline(loans),
     }
 
