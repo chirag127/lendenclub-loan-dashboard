@@ -1216,6 +1216,41 @@ addChart("Cashflow timing & true returns", "Equal monthly EMIs, interest front-l
   };
 });
 
+/* ============ Highest-XIRR loan picks (computed by the pipeline) ============ */
+addChart("Highest-XIRR loan picks", "Which tenure × score cells your completed loans say earn the most per year — net XIRR with every default included — and how to split next month's lending", "hp1", "Recommended split of your next ₹1,000", "Core picks weighted 2×, support 1× in the pipeline allocation — money-losing cells get ₹0", 320, () => {
+  const p = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_picks;
+  const cells = (p && p.cells || []).filter((c) => c.rec_pct > 0 && c.xirr_all != null);
+  const colors = { core: GREEN, support: BLUE, gate: AMBER, avoid: RED };
+  return {
+    ...baseOption(),
+    tooltip: { ...baseOption().tooltip, trigger: "item", formatter: (pp) => `${pp.name}<br/><b>₹${(pp.value * 10).toFixed(0)}</b> of every ₹1,000 lent (${pp.percent}%)<br/><small>${(p.rule || "").split(";")[0]}</small>` },
+    legend: { ...baseOption().legend, bottom: 0, top: "auto" },
+    series: [{
+      type: "pie", radius: ["40%", "70%"], center: ["50%", "42%"],
+      label: { color: "#e6edf7", fontSize: 10.5, formatter: "{b}\n{d}%" },
+      labelLine: { length: 8, length2: 6 },
+      itemStyle: { borderColor: "#0b1220", borderWidth: 2 },
+      data: cells.map((c) => ({ name: c.key.replace("·", " · "), value: +c.rec_pct.toFixed(1), itemStyle: { color: colors[c.tier] } })),
+    }],
+  };
+});
+
+addChart("Highest-XIRR loan picks", "Every pick loses something to defaults — the gap between the two bars is the cost of that cell's NPAs", "hp2", "Net XIRR: successful loans vs including all defaults", "Top-8 cells by default-inclusive return. 6/12-mo and low-score 6-mo cells are excluded because they lose money once defaults are counted", 320, () => {
+  const p = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_picks;
+  const rows = (p && p.cells || []).filter((c) => c.xirr_all != null).slice(0, 8);
+  return {
+    ...baseOption(),
+    legend: { ...baseOption().legend, data: ["Successful loans only", "Incl. all defaults"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((pp) => pp.marker + " " + pp.seriesName + ": <b>" + pp.value.toFixed(1) + "%/yr</b>").join("<br/>") },
+    xAxis: CAT_AXIS(rows.map((c) => c.key.replace("·", " · "))),
+    yAxis: VAL_AXIS(false),
+    series: [
+      { name: "Successful loans only", type: "bar", barWidth: "30%", data: rows.map((c) => c.xirr), itemStyle: { color: "#64748b", borderRadius: [5, 5, 0, 0] } },
+      { name: "Incl. all defaults", type: "bar", barWidth: "30%", data: rows.map((c) => c.xirr_all), itemStyle: { color: (pp) => (pp.value >= 40 ? GREEN : pp.value >= 15 ? BLUE : pp.value > 0 ? AMBER : RED), borderRadius: [5, 5, 0, 0] }, label: { show: true, position: "top", color: "#8fa3c0", fontSize: 9.5, formatter: (pp) => pp.value.toFixed(0) + "%" } },
+    ],
+  };
+});
+
 addChart("Correlations & advanced", "One point per loan", "x1", "Loan amount vs interest rate", "Do bigger loans carry better rates?", 320, (L) => {
   const pts = L.filter((l) => (l.amount || 0) > 0 && l.interest_rate != null).map((l) => [l.amount, l.interest_rate]);
   return {
@@ -1283,6 +1318,9 @@ if (tenureSec) tenureSec.guardrails = true;
 /* mark the Returns & cashflow section to carry the P&L returns statement */
 const returnsSec = SECTIONS.find((s) => s.name.includes("Returns"));
 if (returnsSec) returnsSec.returnsStatement = true;
+/* mark the Highest-XIRR picks section to carry the recommendation panel */
+const picksSec = SECTIONS.find((s) => s.name.includes("Highest-XIRR"));
+if (picksSec) picksSec.loanPicks = true;
 
 /* ---------------- renderer ---------------- */
 const instances = {};
@@ -1307,6 +1345,12 @@ function buildLayout() {
       rs.id = "returns-statement";
       cardsEl.appendChild(rs);
     }
+    if (sec.loanPicks) {
+      const lp = document.createElement("div");
+      lp.className = "loan-picks";
+      lp.id = "loan-picks";
+      cardsEl.appendChild(lp);
+    }
     const grid = document.createElement("div");
     grid.className = "grid";
     sec.charts.forEach((c) => {
@@ -1317,6 +1361,53 @@ function buildLayout() {
     });
     cardsEl.appendChild(grid);
   });
+}
+
+/* ---------------- highest-XIRR loan picks (from scripts/ldc/insights.py) ---------------- */
+const TIER_META = {
+  core: { label: "Core", color: "#22c55e" },
+  support: { label: "Support", color: "#3b82f6" },
+  gate: { label: "Gate", color: "#f59e0b" },
+  avoid: { label: "Avoid", color: "#ef4444" },
+};
+function renderLoanPicks() {
+  const el = document.getElementById("loan-picks");
+  if (!el) return;
+  const p = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_picks;
+  if (!p || !p.cells || !p.cells.length) { el.style.display = "none"; return; }
+  const rowsHtml = p.cells.map((c, idx) => {
+    const tm = TIER_META[c.tier] || TIER_META.gate;
+    const positive = (c.xirr_all || 0) > 0 && c.rec_pct > 0;
+    const bar = positive ? `<span class="lp-bar"><i style="width:${Math.max(2, Math.min(100, c.rec_pct * 2.2))}%"></i></span>` : `<span class="lp-bar"></span>`;
+    const rec = positive ? `₹${(c.rec_pct * 10).toFixed(0)}<small>/₹1,000</small>` : `<span class="lp-zero">₹0</span>`;
+    const suc = c.xirr != null ? `<small class="lp-muted">success-only ${c.xirr.toFixed(1)}%</small>` : "";
+    const defCol = c.def_rate > 10 ? "lp-defbad" : c.def_rate > 5 ? "lp-defwarn" : "lp-defgood";
+    return `<div class="lp-row lp-${c.tier}">` +
+      `<span class="lp-rank">${idx + 1}</span>` +
+      `<span class="lp-cell">${c.tenure} mo <i>·</i> ${c.band}</span>` +
+      `<span class="lp-xirr">${c.xirr_all == null ? "—" : c.xirr_all.toFixed(1)}%/yr ${suc}</span>` +
+      `<span class="lp-stat ${defCol}">${c.def_rate.toFixed(1)}% default</span>` +
+      `<span class="lp-stat">${fmt.format(c.matured)} matured</span>` +
+      `<span class="lp-tier" style="color:${tm.color};border-color:${tm.color}44;background:${tm.color}1a">${tm.label}</span>` +
+      bar + rec + `</div>`;
+  }).join("");
+  const tp = p.tier_pcts || {};
+  const coreN = p.cells.filter((c) => c.tier === "core").length;
+  const supN = p.cells.filter((c) => c.tier === "support").length;
+  el.innerHTML = `
+    <div class="lp-head">
+      <h4>🏆 Highest-XIRR loan picks — where your own completed loans say to lend next</h4>
+      <div class="lp-sub">Ranked by <b>net XIRR incl. every default</b> per tenure × score cell (matured loans only, ≥ ${p.min_matured} completed loans, platform fees deducted, zero-recovery NPAs booked as total losses). Avoid cells lose money after defaults — they get <b>₹0</b> of the recommendation. Cells with fewer than ${p.min_matured} matured loans aren't ranked yet (too little evidence).</div>
+    </div>
+    <div class="lp-sum">
+      <span class="lp-chip" style="color:#22c55e;border-color:#22c55e44;background:#22c55e1a">🟢 Core ${tp.core ? tp.core.toFixed(0) : 0}% of lending</span>
+      <span class="lp-chip" style="color:#3b82f6;border-color:#3b82f644;background:#3b82f61a">🔵 Support ${tp.support ? tp.support.toFixed(0) : 0}%</span>
+      ${tp.gate ? `<span class="lp-chip" style="color:#f59e0b;border-color:#f59e0b44;background:#f59e0b1a">🟡 Gate ${tp.gate.toFixed(0)}% (conditional)</span>` : ""}
+      <span class="lp-chip" style="color:#ef4444;border-color:#ef444444;background:#ef44441a">🔴 Avoid ₹0 — net-negative</span>
+      <span class="lp-muted" style="margin-left:auto">${coreN} core + ${supN} support cells carry the whole recommendation</span>
+    </div>
+    <div class="lp-list">${rowsHtml}</div>
+    <div class="lp-note">Allocation rule (computed by <code>scripts/ldc/insights.py → xirr_picks()</code>): weight = net XIRR × (100 − matured default)/100 — core cells weighted 2×, support 1×, gate 0.2×, avoid 0 — normalized to 100% of monthly lending. Example read: the top pick takes ~${(p.cells[0] && p.cells[0].rec_pct * 10).toFixed(0)} of every ₹1,000 you lend next month.</div>`;
 }
 
 /* ---------------- tenure guardrails (computed, data-driven) ---------------- */
@@ -1541,6 +1632,7 @@ function renderAll() {
   });
   renderGuardrails();
   renderReturnsStatement();
+  renderLoanPicks();
 }
 
 /* make every tooltip formatter immune to axis-vs-item params shape */

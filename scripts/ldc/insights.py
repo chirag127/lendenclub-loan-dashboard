@@ -133,6 +133,12 @@ def _days(d1, d2):
     return (b - a).days
 
 
+def _norm(cfs):
+    """Shift a pooled cashflow list so day 0 is the earliest outflow."""
+    t0 = min(d for d, a in cfs)
+    return [(d - t0, a) for d, a in cfs]
+
+
 def _irr(cashflows):
     """Annualized IRR by bisection on daily cashflows [(day_offset, amount)]."""
     lo, hi = -0.5, 5.0
@@ -190,10 +196,6 @@ def xirr_returns(loans):
     g_cf, n_cf, g_per, n_per = _xirr_cashflows(closed)
     ga_cf, na_cf, ga_per, na_per = _xirr_cashflows(matured)
 
-    def _norm(cfs):
-        t0 = min(d for d, a in cfs)
-        return [(d - t0, a) for d, a in cfs]
-
     def _by_tenure(per):
         return {str(t): round(100 * _irr(_norm(per[t])), 1) for t in per}
 
@@ -207,6 +209,138 @@ def xirr_returns(loans):
         "net_all_by_tenure": _by_tenure(na_per),
         "loans_used": len(closed),
         "loans_used_all": len(matured),
+    }
+
+
+SCORE_PICK_BANDS = [
+    (700, 725, "700–724"), (725, 750, "725–749"), (750, 775, "750–774"),
+    (775, 100000, "775+"),
+]
+
+
+def xirr_picks(loans, min_matured=10):
+    """Rank tenure × score cells by default-inclusive net XIRR and derive a
+    recommended lending allocation from the lender's own completed-loan history.
+
+    Method: every matured loan (CLOSED + NPA) is assigned to a (tenure, score)
+    cell. Its net cashflows — amount out at disbursement, (received − platform
+    fee) spread over the actual monthly EMIs — are pooled per cell and solved
+    for the annualized IRR (same solver as ``xirr_returns``). NPA loans enter as
+    losses (full principal out, only recovered rupees back, zero-recovery loans
+    as total losses), so each cell's XIRR is the honest default-inclusive
+    annualized net return — every fee and every default is inside the number.
+
+    Allocation rule (deterministic and stated on the dashboard):
+      * only cells with >= min_matured completed loans are ranked;
+      * tiered by default-inclusive XIRR and matured default rate:
+          core     XIRR_all >= 40%/yr AND matured default <= 6%
+          support  XIRR_all >= 15%/yr AND matured default <= 12%
+          gate     XIRR_all >  0 but below the support bar (conditional only)
+          avoid    XIRR_all <= 0 — money-losing after fees and defaults
+      * recommended split: weight W = XIRR_all × (100 − default)/100 per cell
+        (risk-adjusted annual return); core cells count 2×, support 1×, gate
+        0.2×, avoid 0 — shares normalized to sum to 100% of monthly lending.
+    """
+    buckets = {}  # (tenure, band_label) -> list of matured loans
+    for l in loans:
+        if l["status"] not in ("CLOSED", "NPA"):
+            continue
+        if not l["disbursement_date"] or not l["repayment_start"] or (l["amount"] or 0) <= 0:
+            continue
+        band = None
+        for lo, hi, lab in SCORE_PICK_BANDS:
+            if l["score"] is not None and lo <= l["score"] < hi:
+                band = lab
+                break
+        if band is None:
+            continue
+        buckets.setdefault((int(l["tenure"]), band), []).append(l)
+
+    cells = []
+    for (t, band), sel in buckets.items():
+        if len(sel) < min_matured:
+            continue
+        npa = [l for l in sel if l["status"] == "NPA"]
+        closed = [l for l in sel if l["status"] == "CLOSED"]
+        disb = sum(l["amount"] or 0 for l in sel)
+        def_rate = 100 * len(npa) / len(sel)
+        avg_rate = (sum(l["interest_rate"] or 0 for l in sel if l["interest_rate"]) /
+                    sum(1 for l in sel if l["interest_rate"])) if any(l["interest_rate"] for l in sel) else None
+        # pooled net cashflows across the cell's matured loans
+        net_cf = []
+        for l in sel:
+            amt = l["amount"] or 0
+            tot = l["total_received"] or 0
+            fee = l["platform_fee"] or 0
+            t_ = int(l["tenure"] or 1)
+            emi = (tot - fee) / t_
+            net_cf.append((0, -amt))
+            for i in range(1, t_ + 1):
+                d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
+                net_cf.append((d, emi))
+        xirr_all = round(100 * _irr(_norm(net_cf)), 1) if net_cf else None
+        # success-only reference: same pool minus the NPA loans
+        if closed:
+            ok_cf = []
+            for l in closed:
+                amt = l["amount"] or 0
+                tot = l["total_received"] or 0
+                fee = l["platform_fee"] or 0
+                t_ = int(l["tenure"] or 1)
+                emi = (tot - fee) / t_
+                ok_cf.append((0, -amt))
+                for i in range(1, t_ + 1):
+                    d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
+                    ok_cf.append((d, emi))
+            xirr = round(100 * _irr(_norm(ok_cf)), 1) if ok_cf else None
+        else:
+            xirr = None
+        cells.append({
+            "key": f"{t}mo·{band}", "tenure": t, "band": band,
+            "matured": len(sel), "npa": len(npa), "closed": len(closed),
+            "def_rate": round(def_rate, 1),
+            "xirr": xirr, "xirr_all": xirr_all,
+            "disb": round(disb, 2),
+            "avg_rate": round(avg_rate, 1) if avg_rate else None,
+        })
+
+    # tier + allocation
+    def _tier(c):
+        xa = c["xirr_all"] if c["xirr_all"] is not None else -1
+        if xa <= 0:
+            return "avoid"
+        if xa >= 40 and c["def_rate"] <= 6:
+            return "core"
+        if xa >= 15 and c["def_rate"] <= 12:
+            return "support"
+        return "gate"
+
+    for c in cells:
+        c["tier"] = _tier(c)
+    factor = {"core": 2.0, "support": 1.0, "gate": 0.2, "avoid": 0.0}
+    weights = []
+    total_w = 0.0
+    for c in cells:
+        xa = c["xirr_all"] or 0
+        r = max(0.0, xa) * max(0.0, 100 - c["def_rate"]) / 100.0
+        w = r * factor[c["tier"]]
+        weights.append(w)
+        total_w += w
+    for c, w in zip(cells, weights):
+        c["rec_pct"] = round(100 * w / total_w, 1) if total_w else 0.0
+    cells.sort(key=lambda c: (-(c["xirr_all"] if c["xirr_all"] is not None else -1), -c["rec_pct"]))
+    tier_pcts = {"core": 0.0, "support": 0.0, "gate": 0.0, "avoid": 0.0}
+    for c in cells:
+        tier_pcts[c["tier"]] += c["rec_pct"]
+    for k in tier_pcts:
+        tier_pcts[k] = round(tier_pcts[k], 1)
+    return {
+        "min_matured": min_matured,
+        "rule": "default-inclusive net XIRR on matured loans (fees + every NPA included); "
+                "weight W = XIRR × (100 − default)/100, core cells weighted 2×, support 1×, "
+                "gate 0.2×, avoid 0 — normalized to 100% of monthly lending",
+        "cells": cells,
+        "tier_pcts": tier_pcts,
     }
 
 
