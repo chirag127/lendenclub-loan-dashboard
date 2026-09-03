@@ -1104,14 +1104,19 @@ addChart("Net returns — after everything", "Which tenure × score cells actual
 });
 
 /* ============ H. Cashflow timing & true returns ============ */
-addChart("Cashflow timing & true returns", "EMIs arrive monthly, not at tenure end — time-weighted (XIRR) returns computed by the pipeline on your actual repayment schedules", "rt1", "True annualized return (XIRR) by tenure — net of fees", "Money-weighted return on closed loans, monthly EMI timing, fees deducted", 320, (L) => {
+addChart("Cashflow timing & true returns", "EMIs arrive monthly, not at tenure end — time-weighted (XIRR) returns computed by the pipeline on your actual repayment schedules", "rt1", "True annualized return (XIRR) by tenure — net of fees", "Green = successful closed loans only. Red = the same loans PLUS every NPA default (incl. zero-recovery) — the honest default-inclusive return", 320, (L) => {
   const x = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns;
   const rows = TENURES.filter((t) => x && x.net_by_tenure[t] != null);
+  const allOf = (k) => rows.map((t) => (x && x[k] && x[k][t] != null ? x[k][t] : null));
   return {
     ...baseOption(),
-    tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/>Net XIRR <b>${p[0].value.toFixed(1)}%/yr</b><br/><span style="font-size:11px;color:#94a3b8">monthly EMI timing, fees deducted</span>` },
+    legend: { ...baseOption().legend, data: ["Successful closed", "Incl. all defaults"] },
+    tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value.toFixed(1) + "%/yr</b>").join("<br/>") },
     xAxis: CAT_AXIS(rows.map((t) => t + " mo")), yAxis: VAL_AXIS(false),
-    series: [{ type: "bar", barWidth: "46%", data: rows.map((t) => x.net_by_tenure[t]), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#4ade80", fontSize: 10, formatter: (p) => p.value.toFixed(1) + "%" }, markLine: { symbol: "none", label: { color: "#fbbf24", fontSize: 10, formatter: "portfolio " + x.portfolio_net.toFixed(1) + "%/yr" }, lineStyle: { color: "#f59e0b", type: "dashed" }, data: [{ yAxis: x.portfolio_net }] } }],
+    series: [
+      { name: "Successful closed", type: "bar", barWidth: "32%", data: rows.map((t) => x.net_by_tenure[t]), itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#4ade80", fontSize: 10, formatter: (p) => p.value.toFixed(1) + "%" }, markLine: { symbol: "none", lineStyle: { color: "#f59e0b", type: "dashed" }, data: [{ yAxis: x.portfolio_net, label: { color: "#fbbf24", fontSize: 10, formatter: "success " + x.portfolio_net.toFixed(1) + "%/yr" } }, { yAxis: x.portfolio_net_all != null ? x.portfolio_net_all : 0, lineStyle: { color: "#f87171" }, label: { color: "#f87171", fontSize: 10, formatter: "with defaults " + (x.portfolio_net_all != null ? x.portfolio_net_all.toFixed(1) : "—") + "%/yr" } }] } },
+      { name: "Incl. all defaults", type: "bar", barWidth: "32%", data: allOf("net_all_by_tenure"), itemStyle: { color: "#f87171", borderRadius: [6, 6, 0, 0] }, label: { show: true, position: "top", color: "#f87171", fontSize: 10, formatter: (p) => (p.value == null ? "" : p.value.toFixed(1) + "%") } },
+    ],
   };
 });
 
@@ -1431,6 +1436,7 @@ function renderReturnsStatement() {
       ${row("Net ROI (after fees)", pct(net, disb))}
       ${row("Net ROI after NPA loss", pct(netAll, disb))}
       ${row("True annualized (XIRR — monthly EMI timing)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns ? window.INSIGHTS_DATA.xirr_returns.portfolio_net.toFixed(1) + "%/yr net" : "—"), "rs-good")}
+      ${row("Net XIRR incl. all NPA defaults (success + NPA)", (window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns && window.INSIGHTS_DATA.xirr_returns.portfolio_net_all != null ? "≈ " + window.INSIGHTS_DATA.xirr_returns.portfolio_net_all.toFixed(1) + "%/yr net" : "—"), "rs-warn")}
       ${row("Realized on closed loans only", pct(cIntr - cFee, closed.reduce((s, l) => s + (l.amount || 0), 0)))}
       ${row("Fees as % of interest earned", pct(fee, intr))}
       ${row("NPA loss as % of disbursed", pct(npaLoss, disb))}

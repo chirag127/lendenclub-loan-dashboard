@@ -148,19 +148,15 @@ def _irr(cashflows):
     return (lo + hi) / 2
 
 
-def xirr_returns(loans):
-    """Time-weighted (XIRR) returns on closed loans, using the actual monthly
-    EMI schedule (repayment_start + 1..tenure months). Because EMIs return
-    capital every month instead of at tenure end, the true annualized return
-    is far higher than the simple net-ROI x 12/tenure figure."""
-    closed = [l for l in loans if l["status"] == "CLOSED"
-              and l["disbursement_date"] and l["repayment_start"]
-              and (l["amount"] or 0) > 0 and (l["total_received"] or 0) > 0]
+def _xirr_cashflows(sel):
+    """Build per-loan gross/net daily cashflows for a matured loan set
+    (amount out at disbursement; (received - fee) spread over the EMI months).
+    Loans that defaulted with zero recovery contribute a pure loss."""
     gross_cf, net_cf = [], []
     per_gross, per_net = {}, {}
-    for l in closed:
+    for l in sel:
         t = int(l["tenure"] or 1)
-        amt, tot, fee = l["amount"], l["total_received"], l["platform_fee"] or 0
+        amt, tot, fee = l["amount"], l["total_received"] or 0, l["platform_fee"] or 0
         g_emi, n_emi = tot / t, (tot - fee) / t
         cf_g = [(0, -amt)]
         cf_n = [(0, -amt)]
@@ -172,20 +168,46 @@ def xirr_returns(loans):
         net_cf.extend(cf_n)
         per_gross.setdefault(t, []).extend(cf_g)
         per_net.setdefault(t, []).extend(cf_n)
+    return gross_cf, net_cf, per_gross, per_net
+
+
+def xirr_returns(loans):
+    """Time-weighted (XIRR) returns on matured loans, using the actual monthly
+    EMI schedule (repayment_start + 1..tenure months). Two views are emitted:
+
+    * ``portfolio_net`` / ``net_by_tenure`` — successful CLOSED loans only
+      (survivorship; what repaying loans earn).
+    * ``portfolio_net_all`` / ``net_all_by_tenure`` — the whole matured book
+      (CLOSED + NPA, including defaults with zero recovery booked as total
+      losses) — the honest default-inclusive annualized return.
+    """
+    closed = [l for l in loans if l["status"] == "CLOSED"
+              and l["disbursement_date"] and l["repayment_start"]
+              and (l["amount"] or 0) > 0 and (l["total_received"] or 0) > 0]
+    matured = [l for l in loans if l["status"] in ("CLOSED", "NPA")
+               and l["disbursement_date"] and l["repayment_start"]
+               and (l["amount"] or 0) > 0]
+    g_cf, n_cf, g_per, n_per = _xirr_cashflows(closed)
+    ga_cf, na_cf, ga_per, na_per = _xirr_cashflows(matured)
 
     def _norm(cfs):
         t0 = min(d for d, a in cfs)
         return [(d - t0, a) for d, a in cfs]
 
-    out = {
-        "portfolio_gross": round(100 * _irr(_norm(gross_cf)), 1),
-        "portfolio_net": round(100 * _irr(_norm(net_cf)), 1),
+    def _by_tenure(per):
+        return {str(t): round(100 * _irr(_norm(per[t])), 1) for t in per}
+
+    return {
+        "portfolio_gross": round(100 * _irr(_norm(g_cf)), 1),
+        "portfolio_net": round(100 * _irr(_norm(n_cf)), 1),
+        "portfolio_net_all": round(100 * _irr(_norm(na_cf)), 1),
         "avg_capital_at_risk_pct": 50.0,  # even-principal monthly amortization
-        "gross_by_tenure": {str(t): round(100 * _irr(_norm(per_gross[t])), 1) for t in per_gross},
-        "net_by_tenure": {str(t): round(100 * _irr(_norm(per_net[t])), 1) for t in per_net},
+        "gross_by_tenure": _by_tenure(g_per),
+        "net_by_tenure": _by_tenure(n_per),
+        "net_all_by_tenure": _by_tenure(na_per),
         "loans_used": len(closed),
+        "loans_used_all": len(matured),
     }
-    return out
 
 
 def expected_emi_timeline(loans):
