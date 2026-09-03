@@ -162,6 +162,22 @@ def run_audit(loans, summary, stats):
                          f"{pnl_interest} of {total} loans follow the report's pnl convention",
                          "PASS" if pnl_interest >= 0.99 * total else "INFO", pnl_interest, total))
 
+    # ---- X8: EMI/interest collection reality on fully-closed loans ----
+    from .insights import interest_collection_rates
+    coll = interest_collection_rates(loans)
+    overall_rate = None
+    ctot = sum(v["contracted_interest"] for v in coll.values())
+    cgot = sum(v["interest_received"] for v in coll.values())
+    if ctot:
+        overall_rate = 100 * cgot / ctot
+    rate12 = coll.get("12", {}).get("collection_rate")
+    checks.append(_check(
+        "X8", "Closed loans collect only part of contracted interest (EMI rebates)",
+        f"on fully-closed loans, {cgot:,.0f} of {ctot:,.0f} contracted interest was actually collected"
+        + (f" ({overall_rate:.1f}% overall; 12-month just {rate12:.1f}%)" if overall_rate is not None else "") +
+        " — early-repayment interest rebates; projections haircut future interest by these per-tenure rates",
+        "INFO", round(cgot, 2), round(ctot, 2)))
+
     # ---- T-series: tenure × score matrix integrity (regression guards) ----
     matrix = tenure_matrix(loans)
     with_ts = [l for l in loans if l["tenure"] is not None and score_band(l["score"])]

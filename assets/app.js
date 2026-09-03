@@ -177,10 +177,24 @@ function maturedRateByTenure(L) {
   });
   return out;
 }
-function projectedNet(rows, feeRate, matRate, defRateOverride) {
+function collRateByTenure(L) {
+  /* % of contracted interest actually collected on fully-closed loans per tenure.
+     Borrowers prepay and get interest rebates, so this is far below 100%
+     (2-mo ~87%, 6-mo ~59%, 12-mo ~25%). */
+  const out = {};
+  TENURES.forEach((t) => {
+    const c = L.filter((l) => l.status === "CLOSED" && l.tenure === t);
+    const ci = c.reduce((s, l) => s + ((l.total_repayment || 0) - (l.amount || 0)), 0);
+    const ii = c.reduce((s, l) => s + (l.interest_received || 0), 0);
+    out[t] = ci ? (100 * ii) / ci : 70;
+  });
+  return out;
+}
+function projectedNet(rows, feeRate, matRate, collRate, defRateOverride) {
   /* Realized + expected full-cycle net for a set of loans: interest − fees − NPA,
-     plus future interest on ACTIVE loans, less future fees and expected future
-     NPA losses at the (matured-only) historical default rate. */
+     plus future interest on ACTIVE loans haircut by the per-tenure interest
+     collection rate (early-repayment rebates), less future fees and expected
+     future NPA losses at the (matured-only) historical default rate. */
   const disb = rows.reduce((s, l) => s + (l.amount || 0), 0);
   const npaAmt = rows.filter((l) => l.status === "NPA").reduce((s, l) => s + (l.npa_amount || 0), 0);
   const realized = rows.reduce((s, l) => s + (l.interest_received || 0), 0)
@@ -194,10 +208,11 @@ function projectedNet(rows, feeRate, matRate, defRateOverride) {
   });
   const t0 = rows.length ? rows[0].tenure : 2;
   const defRate = defRateOverride != null ? defRateOverride : (matRate[t0] || 0);
+  const collPct = (collRate ? collRate[t0] : 100) || 100;
   const expLoss = out * defRate / 100;
-  const projected = realized + futInt * (1 - defRate / 100) - futFee - expLoss;
+  const projected = realized + futInt * (collPct / 100) * (1 - defRate / 100) - futFee - expLoss;
   return {
-    t: t0, count: rows.length, disb, realized, futInt, futFee, out, defRate, expLoss, projected,
+    t: t0, count: rows.length, disb, realized, futInt, futFee, out, defRate, expLoss, projected, collRate: collPct,
     realizedROI: disb ? (100 * realized / disb) : 0,
     projectedROI: disb ? (100 * projected / disb) : 0,
   };
@@ -898,8 +913,8 @@ addChart("Returns & cashflow", "Contractual repayment vs what actually came in",
 /* ============ G. Correlations & advanced ============ */
 /* ============ G. Net returns — after everything ============ */
 addChart("Net returns — after everything", "Every chart here is net of platform fees AND NPA losses — realized to date and projected full-cycle", "nr1", "Net ROI by tenure: realized vs projected", "(interest − fees − NPA losses) ÷ ₹ disbursed per tenure", 320, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
-  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr)).filter((p) => p.count > 0);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr)).filter((p) => p.count > 0);
   return {
     ...baseOption(),
     legend: { ...baseOption().legend, data: ["Realized to date", "Projected full-cycle"] },
@@ -942,8 +957,8 @@ addChart("Net returns — after everything", "Every rupee you actually keep, mon
 });
 
 addChart("Net returns — after everything", "Which borrower-quality bands actually keep the money", "nr4", "Net ROI by LenDenClub score band", "Realized and projected net (after fees + NPA) per score band", 320, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
-  const rows = SCORE_BANDS.map((b) => projectedNet(L.filter((l) => l.score != null && l.score >= b.min && l.score < b.max), fr, mr)).filter((p) => p.count > 0);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const rows = SCORE_BANDS.map((b) => projectedNet(L.filter((l) => l.score != null && l.score >= b.min && l.score < b.max), fr, mr, cr)).filter((p) => p.count > 0);
   return {
     ...baseOption(),
     legend: { ...baseOption().legend, data: ["Realized to date", "Projected full-cycle"] },
@@ -977,7 +992,7 @@ addChart("Net returns — after everything", "The two leaks: fees and defaults",
 });
 
 addChart("Net returns — after everything", "The same ₹100 lent, scored twice — this time net of everything", "nr6", "Projected net ROI heatmap: tenure × score band", "Expected full-cycle net ROI % per cell (interest − fees − expected NPA) — cells with <10 loans blank", 360, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
   const grid = [];
   const xs = SCORE_BANDS.map((b) => b.label), ys = TENURES.map((t) => t + " mo");
   let max = 0;
@@ -986,7 +1001,7 @@ addChart("Net returns — after everything", "The same ₹100 lent, scored twice
     if (rows.length < 10) { grid.push([j, ys.indexOf(t + " mo"), null]); return; }
     const matured = rows.filter((l) => l.status === "CLOSED" || l.status === "NPA");
     const cellRate = matured.length >= 5 ? (100 * matured.filter((l) => l.status === "NPA").length) / matured.length : mr[t];
-    const p = projectedNet(rows, fr, mr, cellRate);
+    const p = projectedNet(rows, fr, mr, cr, cellRate);
     max = Math.max(max, p.projectedROI);
     grid.push([j, ys.indexOf(t + " mo"), +p.projectedROI.toFixed(1)]);
   }));
@@ -1001,12 +1016,12 @@ addChart("Net returns — after everything", "The same ₹100 lent, scored twice
 });
 
 addChart("Net returns — after everything", "What your ₹1.81L expected net looks like if defaults run hotter or colder", "nr7", "Net ROI vs default rate (sensitivity)", "Whole-book expected net ROI as % of active book that defaults", 320, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
-  const all = projectedNet(L, fr, mr);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const all = projectedNet(L, fr, mr, cr);
   const hist = all.out ? all.expLoss / all.out : 0;
   const pts = [0, 5, 10, 15, 20, 25, 30, 35, 40].map((dr) => {
     const loss = all.out * dr / 100;
-    const net = all.realized + all.futInt * (1 - dr / 100) - all.futFee - loss;
+    const net = all.realized + all.futInt * (all.collRate / 100) * (1 - dr / 100) - all.futFee - loss;
     return [+dr, +(100 * net / all.disb).toFixed(2)];
   });
   const histX = Math.max(0, Math.min(40, hist * 100));
@@ -1024,8 +1039,8 @@ addChart("Net returns — after everything", "What your ₹1.81L expected net lo
 });
 
 addChart("Net returns — after everything", "Net of everything, per loan", "nr8", "Average net ₹ per loan by tenure (projected)", "Expected full-cycle net profit split across each tenure's loans", 320, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
-  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr)).filter((p) => p.count > 0);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr)).filter((p) => p.count > 0);
   return {
     ...baseOption(),
     tooltip: { ...baseOption().tooltip, formatter: (p) => `${p[0].axisValue}<br/><b>${inr(p[0].value)}</b> net per loan` },
@@ -1035,8 +1050,8 @@ addChart("Net returns — after everything", "Net of everything, per loan", "nr8
 });
 
 addChart("Net returns — after everything", "Where the remaining ~₹66K of expected net comes from", "nr9", "Future net from the active book by tenure", "Future interest minus future fees minus expected future NPA losses", 340, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
-  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr)).filter((p) => p.count > 0 && p.out > 0);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
+  const rows = TENURES.map((t) => projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr)).filter((p) => p.count > 0 && p.out > 0);
   return {
     ...baseOption(),
     legend: { ...baseOption().legend, data: ["Future interest", "Future fees", "Expected future NPA", "Future net"] },
@@ -1052,9 +1067,9 @@ addChart("Net returns — after everything", "Where the remaining ~₹66K of exp
 });
 
 addChart("Net returns — after everything", "Sticker rate vs what the money actually earns", "nr10", "Contracted rate vs projected annualized net by tenure", "The 45.7% headline vs the net-of-everything, turnover-adjusted return", 320, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
   const rows = TENURES.map((t) => {
-    const p = projectedNet(L.filter((l) => l.tenure === t), fr, mr);
+    const p = projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr);
     const r = L.filter((l) => l.tenure === t && l.interest_rate != null);
     return { t, contracted: r.length ? +avg(r.map((l) => l.interest_rate)).toFixed(1) : 0, netAnn: +(p.projectedROI * 12 / t).toFixed(1) };
   }).filter((r) => r.contracted > 0);
@@ -1071,12 +1086,12 @@ addChart("Net returns — after everything", "Sticker rate vs what the money act
 });
 
 addChart("Net returns — after everything", "Which tenure × score cells actually print money", "nr11", "Money-map: projected net ROI vs ₹ at risk", "Bubble size = ₹ disbursed in the cell — right = better net return", 340, (L) => {
-  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L);
+  const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
   const pts = [];
   TENURES.forEach((t) => SCORE_BANDS.forEach((b) => {
     const rows = L.filter((l) => l.tenure === t && l.score != null && l.score >= b.min && l.score < b.max);
     if (rows.length < 10) return;
-    const p = projectedNet(rows, fr, mr, mr[t]);
+    const p = projectedNet(rows, fr, mr, cr, mr[t]);
     pts.push({ value: [+p.projectedROI.toFixed(1), p.disb, p.count], t, band: b.label, netRoi: p.projectedROI, defRate: p.defRate });
   }));
   return {
@@ -1344,6 +1359,12 @@ function renderReturnsStatement() {
     const m = L.filter((l) => l.tenure === t && (l.status === "CLOSED" || l.status === "NPA"));
     matRate[t] = m.length ? (100 * m.filter((l) => l.status === "NPA").length) / m.length : 0;
   });
+  const collRate = {};
+  TENURES.forEach((t) => {
+    const c = L.filter((l) => l.status === "CLOSED" && l.tenure === t);
+    const ci = c.reduce((s, l) => s + ((l.total_repayment || 0) - (l.amount || 0)), 0);
+    collRate[t] = ci ? 100 * c.reduce((s, l) => s + (l.interest_received || 0), 0) / ci : 70;
+  });
   let futInt = 0, futFee = 0;
   const outByT = {};
   activeL.forEach((l) => {
@@ -1353,23 +1374,29 @@ function renderReturnsStatement() {
     outByT[t] = (outByT[t] || 0) + (l.amount || 0) - (l.principal_received || 0);
   });
   const outstandingT = Object.keys(outByT).reduce((s, t) => s + outByT[t], 0);
-  let expLoss = 0, wLoss = 0;
-  Object.keys(outByT).forEach((t) => { expLoss += outByT[t] * (matRate[t] || 0) / 100; wLoss += outByT[t]; });
+  let expLoss = 0, wLoss = 0, futIntAdj = 0;
+  Object.keys(outByT).forEach((t) => {
+    expLoss += outByT[t] * (matRate[t] || 0) / 100;
+    wLoss += outByT[t];
+    const tFut = activeL.filter((l) => l.tenure === +t).reduce((s, l) => s + Math.max(0, (l.total_repayment || 0) - (l.amount || 0) - (l.interest_received || 0)), 0);
+    futIntAdj += tFut * ((collRate[t] || 100) / 100);
+  });
   const defRate = wLoss ? 100 * expLoss / wLoss : 0;
-  const projectedNet = netAll + futInt * (1 - defRate / 100) - futFee - expLoss;
+  const projectedNet = netAll + futIntAdj * (1 - defRate / 100) - futFee - expLoss;
   const projRoi = disb ? (100 * projectedNet / disb) : 0;
-  const scen = (dr) => { const l = outstandingT * dr; return netAll + futInt * (1 - dr) - futFee - l; };
+  const scen = (dr) => { const l = outstandingT * dr; return netAll + futIntAdj * (1 - dr) - futFee - l; };
   const scenNet = [0, defRate / 100, 0.2, 0.35].map((dr) => scen(dr));
   const scenRoi = scenNet.map((n) => (disb ? (100 * n / disb).toFixed(1) : "—"));
   const proj = `
     <div class="rs-block rs-block-proj"><h4>Projected full-cycle — everything included</h4>
       ${row("Active-book outstanding at risk", inr(outstandingT), "rs-warn")}
-      ${row("Future interest still to earn", inr(futInt), "rs-good")}
+      ${row("Future interest (contracted)", inr(futInt), "rs-good")}
+      ${row("Collection-adjusted (early-repayment rebates)", inr(futIntAdj), "rs-warn")}
       ${row("Future platform fees", "− " + inr(futFee), "rs-bad")}
-      ${row("Expected future NPA loss (your historical rates " + defRate.toFixed(1) + "%)", "− " + inr(expLoss), "rs-bad")}
+      ${row("Expected future NPA loss (historical " + defRate.toFixed(1) + "% default)", "− " + inr(expLoss), "rs-bad")}
       ${row("Expected full-cycle net (realized + projected)", inr(projectedNet), "rs-good")}
       ${row("Expected full-cycle net ROI", pct(projectedNet, disb), "rs-good")}
-      <div class="rs-note">Scenarios — net ROI if the ${fmt.format(activeL.length)} active loans default at: 0% <b>${scenRoi[0]}%</b> · historical ${defRate.toFixed(1)}% <b>${scenRoi[1]}%</b> · 20% <b>${scenRoi[2]}%</b> · 35% <b>${scenRoi[3]}%</b>. Projection uses contracted repayments and fee schedules from closed loans; real results depend on future defaults.</div>
+      <div class="rs-note">EMIs are fully counted — received = every EMI collected to date (₹22.6L). Future interest is haircut by your own collection rates on closed loans (2-mo ${collRate[2].toFixed(0)}%, 6-mo ${collRate[6].toFixed(0)}%, 12-mo ${collRate[12].toFixed(0)}%) because prepayments earn interest rebates. Scenarios — net ROI if active loans default at: 0% <b>${scenRoi[0]}%</b> · historical ${defRate.toFixed(1)}% <b>${scenRoi[1]}%</b> · 20% <b>${scenRoi[2]}%</b> · 35% <b>${scenRoi[3]}%</b>.</div>
     </div>`;
   el.innerHTML = `<div class="rs-grid">${pnl}${roi}${ten}${proj}</div>`;
 }

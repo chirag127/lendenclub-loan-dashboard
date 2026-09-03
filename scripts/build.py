@@ -44,6 +44,7 @@ def main():
         "tenure_matrix": insights.tenure_matrix(loans),
         "returns_by_tenure": insights.returns_by_tenure(loans),
         "overall_returns": insights.overall_returns(loans),
+        "interest_collection_rates": insights.interest_collection_rates(loans),
     }
 
     print("[4/5] auditing data against the source report")

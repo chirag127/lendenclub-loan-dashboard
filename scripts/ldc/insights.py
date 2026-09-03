@@ -91,6 +91,32 @@ def returns_by_tenure(loans):
     return out
 
 
+def interest_collection_rates(loans):
+    """Of the contracted interest on fully-closed loans, what % actually came in?
+
+    LenDenClub borrowers who repay early get an interest rebate, so closed loans
+    routinely collect far less than the contracted interest — 2-month loans ~87%,
+    12-month loans ~25%. Projections must haircut future interest by these rates.
+    """
+    out = {}
+    closed = [l for l in loans if l["status"] == "CLOSED"]
+    for t in TENURES:
+        r = [l for l in closed if l["tenure"] == t]
+        ci = sum((l["total_repayment"] or 0) - (l["amount"] or 0) for l in r)
+        ii = sum(l["interest_received"] or 0 for l in r)
+        ct = sum(l["total_repayment"] or 0 for l in r)
+        rt = sum(l["total_received"] or 0 for l in r)
+        out[str(t)] = {
+            "collection_rate": round(100 * ii / ci, 1) if ci else None,
+            "contracted_interest": round(ci, 2),
+            "interest_received": round(ii, 2),
+            "contracted_total": round(ct, 2),
+            "received_total": round(rt, 2),
+            "total_collection_rate": round(100 * rt / ct, 1) if ct else None,
+        }
+    return out
+
+
 def overall_returns(loans):
     """Whole-book P&L statement."""
     m = _money(loans)
