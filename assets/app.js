@@ -1131,21 +1131,22 @@ addChart("Cashflow timing & true returns", "Not everything at tenure end — the
   };
 });
 
-addChart("Cashflow timing & true returns", "Why monthly EMIs change the answer", "rt3", "Simple annualized vs true (XIRR) net return by tenure", "Simple figure assumes capital locked for the whole tenure; XIRR uses the real monthly EMI schedule", 320, (L) => {
+addChart("Cashflow timing & true returns", "Why monthly EMIs change the answer", "rt3", "Simple annualized vs true (XIRR) net return by tenure", "Grey = projected simple annualized. Green = XIRR on successful closed loans. Red = XIRR with every NPA default included — the honest range", 320, (L) => {
   const fr = feeRateByTenure(L), mr = maturedRateByTenure(L), cr = collRateByTenure(L);
   const x = window.INSIGHTS_DATA && window.INSIGHTS_DATA.xirr_returns;
   const rows = TENURES.map((t) => {
     const p = projectedNet(L.filter((l) => l.tenure === t), fr, mr, cr);
-    return { t, simple: +(p.projectedROI * 12 / t).toFixed(1), xirr: x && x.net_by_tenure[t] };
+    return { t, simple: +(p.projectedROI * 12 / t).toFixed(1), xirr: x && x.net_by_tenure[t], xirrAll: x && x.net_all_by_tenure && x.net_all_by_tenure[t] };
   }).filter((r) => r.xirr != null);
   return {
     ...baseOption(),
-    legend: { ...baseOption().legend, data: ["Projected net (simple annualized)", "Net XIRR (monthly EMI timing)"] },
+    legend: { ...baseOption().legend, data: ["Projected net (simple annualized)", "Net XIRR (successful closed)", "Net XIRR (incl. all defaults)"] },
     tooltip: { ...baseOption().tooltip, formatter: (ps) => ps[0].axisValue + "<br/>" + ps.map((p) => p.marker + " " + p.seriesName + ": <b>" + p.value.toFixed(1) + "%/yr</b>").join("<br/>") },
     xAxis: CAT_AXIS(rows.map((r) => r.t + " mo")), yAxis: VAL_AXIS(false),
     series: [
-      { name: "Projected net (simple annualized)", type: "bar", barWidth: "30%", data: rows.map((r) => r.simple), itemStyle: { color: "#64748b", borderRadius: [5, 5, 0, 0] } },
-      { name: "Net XIRR (monthly EMI timing)", type: "bar", barWidth: "30%", data: rows.map((r) => r.xirr), itemStyle: { color: GREEN, borderRadius: [5, 5, 0, 0] } },
+      { name: "Projected net (simple annualized)", type: "bar", barWidth: "26%", data: rows.map((r) => r.simple), itemStyle: { color: "#64748b", borderRadius: [5, 5, 0, 0] } },
+      { name: "Net XIRR (successful closed)", type: "bar", barWidth: "26%", data: rows.map((r) => r.xirr), itemStyle: { color: GREEN, borderRadius: [5, 5, 0, 0] } },
+      { name: "Net XIRR (incl. all defaults)", type: "bar", barWidth: "26%", data: rows.map((r) => r.xirrAll), itemStyle: { color: "#f87171", borderRadius: [5, 5, 0, 0] } },
     ],
   };
 });
