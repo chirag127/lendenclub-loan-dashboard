@@ -1,10 +1,12 @@
 # 💚 LenDenClub Loan Analytics Dashboard
 
-Interactive analytics dashboard for a **LenDenClub (Lending Club India) manual lending report** — 50+ charts, KPIs and a full loan register, hosted on GitHub Pages.
+Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — exactly 50 charts (of 83 defined, pruned to the decision-relevant set), KPIs, recommendation panels and a full loan register. Every chart shown answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
+
+**Pure static site** — data ships as `data/*.js` globals and ECharts is vendored locally, so the page also works by double-clicking `index.html` directly from `file://` (no build, no server, no internet).
 
 **Live:** https://chirag127.github.io/lendenclub-loan-dashboard/
 
-![Charts](https://img.shields.io/badge/charts-78-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F30%20checks%20passed-brightgreen)
+![Charts](https://img.shields.io/badge/charts-50%20(decision%20view)-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-pure%20static%20html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F30%20checks%20passed-brightgreen)
 
 ## The data
 
@@ -38,32 +40,30 @@ Interactive analytics dashboard for a **LenDenClub (Lending Club India) manual l
 - **Recovery is strong:** cumulative principal received has tracked cumulative disbursements closely, and 100% of interest/fees received to date total ₹2.53L vs ₹45.1K paid in platform fees.
 - 24 daily-repayment loans vs 2,969 monthly — daily loans are the minority, mostly 2-month tenures.
 
-## Dashboard features
+## Dashboard features — a decision flow, 50 charts in 6 sections
 
-- **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate (simple + weighted), active/closed/NPA counts, DPD exposure
-- **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 30 checks (22 PASS · 8 notes · 0 FAIL), green ✅/ℹ️/❌ per check, regenerated on every build
-- **83 interactive charts** (Apache ECharts) in 12 sections:
-  - *Portfolio overview* — status split, money in the portfolio, repayment-type split, rate histogram
-  - *Disbursement activity* — monthly/ cumulative/avg disbursement, weekday & day-of-month seasonality, tenure-stacked volumes
-  - *Loan characteristics* — amount/rate/score/tenure distributions, score-vs-ticket-size, rate-vs-tenure
-  - *Portfolio & status health* — status counts & share by month, avg amount/rate/score/tenure by status, status treemap
-  - *Risk (NPA & DPD)* — NPA counts, amounts and rates by month/tenure/score band, DPD histogram & 30/60/90-day delinquency lines
-  - *Tenure × score risk & guardrails* — NPA-rate & loan-count heatmaps, loss economics per tenure, matured-only default rates, risk-vs-return bubbles, active exposure, DPD by tenure + 5 auto-computed lending guardrail cards
-  - *Returns & cashflow* — P&L statement + ROI + annualized return by tenure (turnover-adjusted, realized to date) + projected full-cycle panel, received/principal/interest/fees/P&L by month, cumulative received vs disbursed, recovery rate, expected vs received
-  - *Net returns — after everything* — 11 charts where every number is net of fees + NPA: realized vs projected net ROI by tenure, the rate ladder (gross interest → fees → NPA → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, projected net ROI heatmap (tenure × score), default-rate sensitivity curve, net ₹ per loan, future net from the active book, contracted rate vs projected annualized net, and the money-map bubble chart
-  - *Cashflow timing & true returns* — time-weighted XIRR by tenure (net of fees, computed on the actual monthly EMI schedules): realized on **closed loans** (successful vs incl. all defaults), **projected on the active book** (expected vs best-case, using your own default & collection rates — `active_xirr()` in the pipeline), the month-by-month expected future EMI receipts, and simple-vs-XIRR comparison showing why monthly EMIs beat the simple annualized figure
-  - *Highest-XIRR loan picks* — the recommendation panel: every tenure × score cell with ≥10 completed loans ranked by **net XIRR incl. all defaults** (fees + zero-recovery NPAs inside the number), tiered Core / Support / Gate / Avoid, with a data-driven split of next month's ₹1,000 (computed by `scripts/ldc/insights.py → xirr_picks()`), plus a recommended-allocation donut and a successful-vs-defaults XIRR chart
-  - *Why? — the reasons behind every number* — a plain-language narrative section (no charts, so it renders anywhere, `file://` included): a **“Lend only these” verdict strip** computed live from the picks data (🟢 core cells with their ₹/₹1,000, 🔵 small support cells, 🔴 never-lend cells that lose money after defaults) plus **14 reason cards**, each with “What the data shows” vs “Why it happens” — every figure read live from the same regenerated data globals (why 2–3 month wins, why 12-month loses, why 6-month below score 750 is the NPA engine, why XIRR ≈ double simple ROI, the 67.7 → 53.2 → 22.2% fee/default ladder, zero-recovery defaults, recovery softening, active-vs-realised gap, and risk = time × borrower quality)
-  - *Correlations & advanced* — amount×rate, score×rate, amount×score scatter plots + month×score and month×tenure heatmaps
-- **Live filters** — status chips, repayment type, single-month data window (all charts + KPIs + table react)
+Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → watch-outs → verdict.**
+
+- **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate, active/closed/NPA counts, DPD exposure
+- **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 30 checks (22 PASS · 8 notes · 0 FAIL), regenerated on every build
+- **50 interactive charts** (Apache ECharts) in 6 sections:
+  - *The book at a glance* (7) — status split, money in the portfolio, repayment-type split, monthly disbursed ₹, monthly disbursed by tenure, tenure distribution, disbursed ₹ by tenure
+  - *Borrower supply & ticket sizes* (4) — avg ticket by tenure, score histogram, avg score by month (is quality trending?), avg ticket by score band (high scores = bigger loans)
+  - *What loans actually pay — net of fees & defaults* (12) — P&L/ROI/annualized statement panel, XIRR by tenure (successful vs **incl. all defaults**), simple-vs-XIRR and amortization explainers, realized-vs-projected net ROI by tenure, the full rate ladder (sticker → fees → defaults → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, **projected net-ROI heatmap (tenure × score)**, default-rate sensitivity, net ₹ per loan by tenure
+  - *Where loans default — risk by tenure × score* (13) — NPA counts/₹/rates by month, NPA rate by tenure & score band, NPA heatmap tenure × score + loan-count denominator, loss-rate ₹ by tenure, share of loans vs NPAs, interest vs NPA loss, matured-only default rates, and score-tier behaviour + **5 auto-computed lending guardrail cards**
+  - *Cashflow & watch-outs* (12) — received/interest/P&L by month, recovery rate, cumulative received vs disbursed, expected future EMI receipts, active-book expected-vs-received and **projected net XIRR** (`active_xirr()`), active ₹ exposure, overdue share & DPD severity
+  - *The verdict — lend only these* (2 + 2 panels) — the **Highest-XIRR loan picks panel** (every tenure × score cell with ≥10 completed loans ranked by net XIRR incl. all defaults, tiered Core/Support/Avoid, per-₹1,000 split from `xirr_picks()`), allocation donut, successful-vs-defaults chart, the **“Lend only these” verdict strip** and **14 plain-language reason cards** (every figure read live from the data globals: why 2–3 month wins, why 12-month loses, why 6-month below 750 is the NPA engine, the 67.7 → 53.2 → 22.2% ladder, and risk = time × borrower quality)
+- **Live filters** — status chips, repayment type, single-month data window (charts + KPIs + table react)
 - **Sortable, searchable loan register** — all 2,993 loans (loan ID, order ID, dates, amount, status, rate, tenure, score, DPD, received, interest, P&L)
+
+The other 33 chart definitions (seasonality, status treemaps, correlations, pure monthly actuals…) remain in `assets/app.js` but are **not rendered** — the dashboard stays 100% focused on picking loans. The render set is curated in one block (`curateDecisionView()` in `app.js`).
 
 ## Repo structure
 
 ```
-├── index.html            # dashboard page (v6 — embedded data + audit)
+├── index.html            # dashboard page (v7 — embedded data + audit)
 ├── assets/
-│   ├── app.js            # chart engine + analysis (83 charts, guardrails, P&L statement, picks panel, reasons section, audit bar)
+│   ├── app.js            # chart engine + decision curation (50 rendered charts of 83 defined, guardrails, P&L statement, picks panel, reasons section, audit bar)
 │   ├── echarts.min.js    # ECharts vendored locally (Apache-2.0)
 │   └── styles.css        # dark theme
 ├── data/                 # generated by scripts/build.py (json + js globals)
@@ -105,7 +105,7 @@ Current result: **22 PASS · 7 documented notes · 0 FAIL**. The notes are verif
 ## Notes
 
 - **Privacy:** the lender's registered email and mobile number from the report are intentionally **not** included in this public dataset.
-- Static site, 100% client-side with **zero runtime CDN dependency**: ECharts (Apache-2.0) is vendored in `assets/echarts.min.js` and the data ships as embedded JS globals, so the page works offline, from `file://`, or behind strict networks.
+- Static site, 100% client-side with **zero runtime CDN dependency**: ECharts (Apache-2.0) is vendored in `assets/echarts.min.js` and the data ships as embedded JS globals (`data/*.js`), so the page works offline, from `file://`, or behind strict networks. To run it locally just download the folder and double-click `index.html` — no server or build step needed.
 
 ---
 
