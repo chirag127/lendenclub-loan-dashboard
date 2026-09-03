@@ -19,7 +19,7 @@
     <div class="brand">
       <span class="brand-logo">💚</span>
       <div>
-        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v3</span></div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v4</span></div>
         <div class="brand-sub">Loan Analytics Dashboard</div>
       </div>
     </div>
@@ -61,6 +61,8 @@
   <button class="btn" id="resetBtn">Reset filters</button>
 </section>
 
+<section class="audit" id="auditBar" aria-label="Data audit"></section>
+
 <main class="charts" id="charts"></main>
 
 <section class="table-section">
@@ -80,12 +82,14 @@
 </section>
 
 <footer class="foot">
-  <p>Data source: <code>MANUAL_LENDING_REPORT_5XDIOTZGEZ_17883746044558.xlsx</code> · Generated with <code>scripts/build_data.py</code> · Charts: Apache ECharts · <a href="https://github.com/chirag127/lendenclub-loan-dashboard" target="_blank" rel="noopener">GitHub</a></p>
+  <p>Data source: <code>MANUAL_LENDING_REPORT_5XDIOTZGEZ_17883746044558.xlsx</code> · Generated with the modular pipeline <code>scripts/build.py</code> → <code>scripts/ldc/*.py</code> · Charts: Apache ECharts · <a href="https://github.com/chirag127/lendenclub-loan-dashboard" target="_blank" rel="noopener">GitHub</a></p>
   <p class="muted">Personal contact details (email/mobile) are intentionally excluded from this public dataset.</p>
 </footer>
 
 <script src="data/summary.js"></script>
 <script src="data/loans.js"></script>
+<script src="data/insights.js"></script>
+<script src="data/audit.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
