@@ -59,6 +59,7 @@ async function init() {
     document.getElementById("headerMeta").innerHTML =
       `<strong>${summary.lender.name}</strong> · ID ${summary.lender.user_id}<br>${s.from_date} → ${s.to_date} · <strong>${fmt.format(summary.stats.total_loans)}</strong> loans · <strong>${inr(s.disbursed_amount)}</strong> disbursed`;
     buildLayout();
+    renderTabs();
     renderChips();
     renderKPIs();
     renderTable();
@@ -67,7 +68,8 @@ async function init() {
     renderAudit();
     await ensureECharts();
     renderAll();
-    console.log("Dashboard ready —", SECTIONS.reduce((a, s) => a + s.charts.length, 0), "charts");
+    renderInsightCards();
+    console.log("Dashboard ready —", activeSections().reduce((a, s) => a + visibleCharts(s).length, 0), "charts (", INSIGHT_CARDS.length, "insight cards )");
   } catch (err) {
     showError("Something went wrong: " + err.message + " — try reloading the page.");
   }

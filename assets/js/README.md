@@ -44,6 +44,18 @@ All **142** charts are defined here. Which ones *render* is decided later by `cu
 add a new `addChart(...)` and list its id in a `curation.js` group and it renders; the same file
 can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` table below).
 
+### Tabs, density & insight cards
+- `ui/tabs.js` — the view bar: "All views" + one tab per section + a **Full registry** tab; a
+  **Compact / Standard / Everything** density switch (Compact renders only `ESSENTIAL_CHARTS`
+  from `core.js`; Everything adds the Full-registry section — no cap or minimum in any direction).
+- `ui/cards.js` + `ui/cards-insights.js` — the insight-card engine: `addInsightCard({ section, tone,
+  icon, title, data, why, need })`; every number is read live from the data globals at render time,
+  cards scoped per section or global ("All"), and `need(ctx)` gates cards whose data is absent so a
+  card disappears instead of lying. Nothing is hard-capped — add cards freely.
+- `ui/renderer.js` — one layout per (tab × density × filter) with section wrappers, presence-gated
+  empty states (`hasLoansInSlice`) for filtered-out slices, and per-chart fallbacks when a builder
+  returns null (data gap) instead of blank boxes.
+
 ### Curation — the single source of truth for what renders
 `curation.js` rebuilds `SECTIONS` into the 9-section decision flow (book →
 supply → returns → risk → XIRR-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 114)**.

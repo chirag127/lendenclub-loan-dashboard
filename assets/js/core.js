@@ -49,6 +49,8 @@ const state = {
   status: new Set(["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"]),
   repay: "All",
   window: "All",
+  view: "All",            // which tab is showing: "All" or a section name (see ui/tabs.js)
+  density: "standard",     // chart density: "compact" | "standard" | "everything"
 };
 let MONTHS = []; // 'YYYY-MM' ascending
 
@@ -65,6 +67,19 @@ function filtered() {
     (state.repay === "All" || l.repayment_type === state.repay) &&
     (!wm || (l.disbursement_date || "").startsWith(wm))
   );
+}
+/* does the current filter slice contain ANY loan a given section cares about?
+   sec.need: "any" (default) | "matured" (CLOSED+NPA) | "active" | "npa" — lets a
+   section hide itself with a friendly empty-state instead of rendering zeros. */
+function hasLoansInSlice(sec) {
+  const L = filtered();
+  if (!L.length) return false;
+  const need = (sec && sec.need) || "any";
+  if (need === "any") return true;
+  if (need === "matured") return L.some((l) => l.status === "CLOSED" || l.status === "NPA");
+  if (need === "active") return L.some((l) => l.status === "ACTIVE");
+  if (need === "npa") return L.some((l) => l.status === "NPA");
+  return true;
 }
 function monthIndex(m) { return MONTHS.indexOf(m); }
 function sumByMonth(loans, key) {
@@ -342,9 +357,21 @@ function polish(opt) {
 /* ---------------- chart registry ---------------- */
 const SECTIONS = [];
 
+/* charts flagged ESSENTIAL_CHARTS render in "Compact" density — the short list
+   someone would actually read first. Keep it honest and short; "Standard" and
+   "Everything" always show every curated chart regardless. */
+const ESSENTIAL_CHARTS = new Set([
+  "g1", "dg1",                        // glance: status split + gauges
+  "rt1", "nr1", "nr2", "fe3",        // returns: ROI, XIRR by tenure, ladder, fee waterfall
+  "r5", "n1",                        // risk: NPA by tenure, tenure × score heatmap
+  "xa01",                            // atlas: net XIRR incl. defaults (whole book)
+  "ny1", "vc1",                      // by-year NPA, vintage curves
+  "hp1",                             // verdict: picks panel
+]);
+
 function addChart(sectionName, sectionSub, id, title, sub, h, builder) {
   let sec = SECTIONS.find((s) => s.name === sectionName);
   if (!sec) { sec = { name: sectionName, sub: sectionSub, charts: [] }; SECTIONS.push(sec); }
-  sec.charts.push({ id, title, sub, h, builder });
+  sec.charts.push({ id, title, sub, h, builder, essential: ESSENTIAL_CHARTS.has(id) });
 }
 
