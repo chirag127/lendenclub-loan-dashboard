@@ -51,6 +51,8 @@ const state = {
   window: "All",
   view: "All",            // which tab is showing: "All" or a section name (see ui/tabs.js)
   density: "standard",     // chart density: "compact" | "standard" | "everything"
+  registerGroupMode: "decision", // grouping used only by the loan-register screener
+  registerGroup: "All",          // selected group key, or All
 };
 let MONTHS = []; // 'YYYY-MM' ascending
 

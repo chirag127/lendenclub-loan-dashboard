@@ -68,10 +68,10 @@ function emptyStateHtml(sec) {
 /* accent per group so neighbouring sections read as separate blocks even while
    scrolling; keyword-matched to keep semantic colouring stable across builds */
 const GROUP_ACCENTS = [
-  [/glance/, "#38bdf8"], [/supply/, "#818cf8"], [/actually pay/, "#22c55e"],
+  [/Decision center/, "#34d399"], [/glance/, "#38bdf8"], [/supply/, "#818cf8"], [/actually pay/, "#22c55e"],
   [/future/, "#a78bfa"], [/default — risk/, "#f59e0b"], [/atlas/, "#2dd4bf"],
   [/NPA by origination year/, "#fb923c"], [/cohort/, "#fb7185"], [/watch-outs/, "#22d3ee"],
-  [/verdict/, "#4ade80"], [/registry/, "#94a3b8"],
+  [/verdict/, "#4ade80"], [/Loan groups/, "#f472b6"], [/registry/, "#94a3b8"],
 ];
 function groupAccent(name) {
   const hit = GROUP_ACCENTS.find(([re]) => re.test(name));
@@ -95,7 +95,7 @@ function buildLayout() {
     const head = document.createElement("header");
     head.className = "group-head";
     const n = visibleCharts(sec).length;
-    const pill = n ? `${n} chart${n === 1 ? "" : "s"}` : (sec.qa ? "Q&A" : "0 charts");
+    const pill = n ? `${n} chart${n === 1 ? "" : "s"}` : (sec.qa ? "Q&A" : sec.loanGroups ? "Groups" : "0 charts");
     head.innerHTML =
       `<span class="grp-num">${String(i + 1).padStart(2, "0")}</span>` +
       `<div class="grp-txt"><h2>${sec.name}</h2><p>${sec.sub}</p></div>` +
@@ -110,14 +110,20 @@ function buildLayout() {
       return;
     }
 
+    /* order inside the group: the headline verdict strip FIRST (the direct
+       answer), then the ranked picks, the one-table, cohort comparisons, the
+       FY income plan, the unproven watch, the insight cards, then charts. */
+    if (sec.why) grp.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
+    if (sec.loanPicks) grp.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
+    if (sec.decisionTable) grp.insertAdjacentHTML("beforeend", `<div class="decision-table" id="decision-table"></div>`);
+    if (sec.loanGroups) grp.insertAdjacentHTML("beforeend", `<div class="loan-groups" id="loan-groups"></div>`);
+    if (sec.fyIncome) grp.insertAdjacentHTML("beforeend", `<div class="fy-income" id="fy-income"></div>`);
+    if (sec.unprovenWatch) grp.insertAdjacentHTML("beforeend", `<div id="unproven-watch"></div>`);
     if (sec.guardrails) grp.insertAdjacentHTML("beforeend", `<div class="guardrails" id="guardrails"></div>`);
     if (sec.returnsStatement) grp.insertAdjacentHTML("beforeend", `<div class="returns-statement" id="returns-statement"></div>`);
     if (sec.riskMatrix) grp.insertAdjacentHTML("beforeend", `<div class="risk-matrix" id="risk-matrix"></div>`);
     if (sec.npaYearTable) grp.insertAdjacentHTML("beforeend", `<div class="npa-year-table" id="npa-year-table"></div>`);
     if (sec.vintageTable) grp.insertAdjacentHTML("beforeend", `<div class="vintage-table" id="vintage-table"></div>`);
-    if (sec.decisionTable) grp.insertAdjacentHTML("beforeend", `<div class="decision-table" id="decision-table"></div>`);
-    if (sec.loanPicks) grp.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
-    if (sec.why) grp.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
     if (sec.cards) grp.insertAdjacentHTML("beforeend", `<div class="insight-cards" id="insight-cards-${CSS.escape(sec.name)}" data-section="${sec.name}"></div>`);
     if (sec.qa) grp.insertAdjacentHTML("beforeend", `<div class="qa" id="qa"></div>`);
 
@@ -174,6 +180,9 @@ function renderAll() {
   if (document.getElementById("npa-year-table")) renderNpaYearTable();
   if (document.getElementById("vintage-table")) renderVintageTable();
   if (document.getElementById("decision-table")) renderDecisionTable();
+  if (document.getElementById("loan-groups")) renderLoanGroups();
+  if (document.getElementById("fy-income")) renderFYIncome();
+  if (document.getElementById("unproven-watch")) renderUnprovenWatch();
   if (document.getElementById("reasons")) renderReasons();
   if (document.getElementById("qa")) renderQA();
   renderInsightCards();

@@ -80,6 +80,8 @@ document.getElementById("windowFilter").addEventListener("change", (e) => { stat
 document.getElementById("resetBtn").addEventListener("click", () => {
   state.status = new Set(["CLOSED", "ACTIVE", "NPA", "PROCESSING", "REJECTED", "CANCELLED"]);
   state.repay = "All"; state.window = "All";
+  if (typeof state.registerGroupMode !== "undefined") state.registerGroupMode = "decision";
+  if (typeof state.registerGroup !== "undefined") state.registerGroup = "All";
   document.getElementById("repayFilter").value = "All";
   document.getElementById("windowFilter").value = "All";
   document.getElementById("tableSearch").value = "";

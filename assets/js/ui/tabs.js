@@ -42,6 +42,7 @@ const GROUP_CHIP_LABELS = {
   "Defaults by origination cohort — curves, rates & the ₹ bill": "Cohort curves",
   "Cashflow & watch-outs": "Cashflow",
   "Your questions answered": "Q&A",
+  "Loan groups — compare decision cohorts": "Groups",
   "The verdict — lend only these": "The verdict",
 };
 function groupChipLabel(sec) {

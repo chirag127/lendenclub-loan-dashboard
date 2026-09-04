@@ -550,7 +550,7 @@ def npa_by_year(loans):
     }
 
 
-def xirr_picks(loans, min_matured=10):
+def xirr_picks(loans, min_matured=30):
     """Rank tenure × score cells by default-inclusive net XIRR and derive a
     recommended lending allocation from the lender's own completed-loan history.
 
@@ -566,12 +566,15 @@ def xirr_picks(loans, min_matured=10):
     every default is inside the number.
 
     Allocation rule (deterministic and stated on the dashboard):
-      * only cells with >= min_matured completed loans are ranked;
+      * only cells with >= min_matured completed loans are ranked (the
+        dashboard's strict evidence gate is 30 matured loans);
       * tiered by default-inclusive XIRR and matured default rate:
           core     XIRR_all >= 40%/yr AND matured default <= 6%
-          support  XIRR_all >= 15%/yr AND matured default <= 12%
-          gate     XIRR_all >  0 but below the support bar (conditional only)
+          support  XIRR_all >= 15%/yr AND matured default <= 8%
+          gate     XIRR_all >  0 but above 8% default or below the support bar
           avoid    XIRR_all <= 0 — money-losing after fees and defaults
+        Only core/support cells are strict eligible lending candidates;
+        gate cells remain visible as conditional watch-list groups.
       * recommended split: weight W = XIRR_all × (100 − default)/100 per cell
         (risk-adjusted annual return); core cells count 2×, support 1×, gate
         0.2×, avoid 0 — shares normalized to sum to 100% of monthly lending.
@@ -637,7 +640,7 @@ def xirr_picks(loans, min_matured=10):
             return "avoid"
         if xa >= 40 and c["def_rate"] <= 6:
             return "core"
-        if xa >= 15 and c["def_rate"] <= 12:
+        if xa >= 15 and c["def_rate"] <= 8:
             return "support"
         return "gate"
 

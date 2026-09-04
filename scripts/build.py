@@ -22,7 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ldc import clean, emit, insights, summary as summary_mod, audit as audit_mod, xlsx  # noqa: E402
+from ldc import clean, emit, insights, summary as summary_mod, audit as audit_mod, forecast, xlsx  # noqa: E402
 
 
 def main():
@@ -56,6 +56,9 @@ def main():
         "return_drivers": insights.return_drivers(loans),
         "active_xirr": insights.active_xirr(loans),
         "expected_emi_timeline": insights.expected_emi_timeline(loans),
+        "fy_forecast": forecast.fy_forecast(loans, xirr_picks_payload,
+                                             active_payload=insights.active_xirr(loans),
+                                             report_end=summary.get("to_date")),
     }
 
     print("[4/5] auditing data against the source report")

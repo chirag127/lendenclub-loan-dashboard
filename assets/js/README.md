@@ -8,7 +8,7 @@ so **load order matters** and is fixed in `index.html`.
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
 (infrastructure)              (151 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 45 of 151,
+                                                       renders: 43 of 151,
                                                        not a fixed cap)
 ```
 
@@ -32,7 +32,7 @@ All **151** charts are defined here. Which ones *render* is decided later by `cu
 | `cashflow.js` | i1–i8 | i1, i3, i5, i6, i7, i8 |
 | `net-returns.js` | nr1–nr11 | nr1–nr8, nr10, nr11 |
 | `fees.js` | fe1–fe5 | fe1, fe2, fe3, fe4 — the fee model, verified from the data (fee = schedule % × principal returned per EMI, with the Apr/Jun-26 price increases for 4/5-month loans): schedule by tenure, fee ₹ vs interest, total ₹ impact waterfall, the fee increase for new 4/5-month loans, and the proof scatter (fee vs principal returned — every loan on its tenure's line) |
-| `allocation.js` | al1–al3 | al1, al2, al3 — this month's money vs the verdict (by tenure, at the tenure × score cell level, and by verdict tier), from `month_allocation()` in the pipeline |
+| `allocation.js` | al1–al3 | al2 only in the registry — the month-allocation views (al1/al3) duplicated the insight card "This month's money vs the verdict" and the decision table's "This month ₹" column, so they were cut from the curated set in v26; al2 (cell-level ₹ vs recommended) stays one click away in the Full registry |
 | `return-drivers.js` | rd1–rd4 | rd1, rd2, rd3, rd4 — realized net return after fees & every default by quoted-rate band, ticket size, repayment type, and ticket-size-within-each-cell (the ₹2,500 trap), from `return_drivers()` in the pipeline (audit W3–W5) |
 | `xirr.js` | rt1–rt6 | rt1–rt6 |
 | `picks.js` | hp1–hp2 | hp1, hp2 |
@@ -61,15 +61,15 @@ can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` ta
 
 
 ### Curation — the single source of truth for what renders
-`curation.js` rebuilds `SECTIONS` into the decision flow (book → supply → realized returns → expected future returns → **your questions answered** → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 45 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated; the expected-future-returns section keeps the forward-looking charts up front; the Q&A group holds no charts — it renders the `ui/qa.js` accordion instead)**.
+`curation.js` rebuilds `SECTIONS` into the decision flow (**decision center — the answer first** → glance → supply → realized returns → expected future returns → **your questions answered** → risk → fine-bucket-atlas → NPA-by-year → vintage → cashflow/watch-outs) and keeps the **curated render set (currently 43 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated; the decision center holds the verdict strip, picks panel, one-table decision view, grouped loan cohorts, FY 2026–27 income plan and unproven-cell watchlist; the Q&A group holds no charts — it renders the `ui/qa.js` accordion)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file
 | File | Renders |
 |---|---|
-| `renderer.js` | page layout (`buildLayout` renders numbered `.group` blocks per section), chart instances, `renderAll`, `safeTooltip` |
+| `renderer.js` | page layout (`buildLayout` renders numbered `.group` blocks per section — panels ordered decision-first inside each group), chart instances, `renderAll`, `safeTooltip` |
 | `loan-picks.js` | the "Highest-XIRR loan picks" ranking panel |
-| `reasons.js` | the "why" cards + 🟢/🔵/🔴 lend-only verdict strip |
+| `reasons.js` | the 🟢/🔵/🔴 lend-only verdict strip only (the long-form narrative cards were removed in v26 — they duplicated the insight-card engine; the cards live in `cards-insights.js`) |
 | `guardrails.js` | the 5 lending-guardrail cards |
 | `audit.js` | the data-integrity audit bar |
 | `risk-matrix.js` | the tenure × score risk reference **table** (plain HTML — another form of showing the data) |
@@ -79,7 +79,10 @@ To show or hide a chart, edit its id in that file's group lists — nothing else
 | `returns-statement.js` | the P&L / ROI / annualized-return statement |
 | `kpis.js` | the 12 KPI cards |
 | `filters.js` | the status filter chips |
-| `table.js` | the sortable/searchable loan register (with a sortable **Verdict** column — Lend/Small/Conditional/Never/Unproven per loan's cell) |
+| `table.js` | the sortable/searchable loan register (with a sortable **Verdict** column — Lend/Small/Conditional/Never/Unproven per loan's cell; the register can also be filtered by the selected group) |
+| `loan-groups.js` | the modular **Loan groups** panel: decision verdict, tenure, score-band and ticket-size groupings with loan counts, exposure, active/closed/NPA mix, matured NPA rate, realized net return, forward expected return and click-through register filtering |
+| `fy-income.js` | the **FY 2026–27 income plan** panel (plain HTML): expected net profit on the current active book + monthly reinvestment into the strict-eligible cells, formatted from the pipeline's `fy_forecast` payload (`scripts/ldc/forecast.py`) |
+| `unproven.js` | the **unproven / thin-evidence watchlist**: every tenure × score cell with 1–29 matured loans (not yet certified) or zero loans (untested), so users know where the verdict is silent and why |
 
 ### Boot
 `boot.js` (load last): ECharts CDN fallback chain, `showError`, `init()` — which loads the

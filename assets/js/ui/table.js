@@ -17,7 +17,7 @@ const TABLE_COLS = [
   { key: "interest_received", label: "Interest", num: true }, { key: "pnl", label: "P&L", num: true },
 ];
 function renderTable() {
-  const L = filtered();
+  const L = typeof registerFilteredLoans === "function" ? registerFilteredLoans() : filtered();
   const q = (document.getElementById("tableSearch").value || "").toLowerCase();
   const rows = L
     .filter((l) => !q || (l.loan_id || "").toLowerCase().includes(q) || (l.order_id || "").toLowerCase().includes(q))

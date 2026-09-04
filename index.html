@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LenDenClub · Loan Analytics Dashboard</title>
-<meta name="description" content="Manual lending decision dashboard for LenDenClub (Lending Club India) — 60+ charts, gauge dials, a tenure × score risk matrix, an NPA-by-year ledger (tenure-level vs annualized), KPIs and a loan register — everything needed to answer which loans to invest in.">
+<meta name="description" content="Decision-first LenDenClub lending dashboard — strict loan verdicts, grouped loan cohorts, FY 2026–27 net-income forecast, fees, defaults, XIRR, EMI timing, risk tables and only the charts needed to decide which loans to give.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💚</text></svg>">
-<link rel="stylesheet" href="assets/styles.css?v=24">
+<link rel="stylesheet" href="assets/styles.css?v=26">
 <!-- ECharts vendored locally (Apache-2.0) so the site has no runtime CDN dependency -->
 <script src="assets/echarts.min.js"></script>
 <script>window.addEventListener("error", function (e) { var el = e.target; if (el && el.tagName === "SCRIPT" && el.src.indexOf("echarts") > -1 && !window.echarts) { var s = document.createElement("script"); s.src = "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"; document.head.appendChild(s); } }, true);</script>
@@ -19,7 +19,7 @@
     <div class="brand">
       <span class="brand-logo">💚</span>
       <div>
-        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v24</span></div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v26</span></div>
         <div class="brand-sub">Loan Analytics Dashboard</div>
       </div>
     </div>
@@ -84,7 +84,7 @@
 </section>
 
 <footer class="foot">
-  <p>Data source: <code>MANUAL_LENDING_REPORT_5XDIOTZGEZ_17883746044558.xlsx</code> · Generated with the modular pipeline <code>scripts/build.py</code> → <code>scripts/ldc/*.py</code> · Charts: Apache ECharts · <a href="https://github.com/chirag127/lendenclub-loan-dashboard" target="_blank" rel="noopener">GitHub</a></p>
+  <p>Data source: <code>MANUAL_LENDING_REPORT_5XDIOTZGEZ_17885170422222.xlsx</code> · Generated with the modular pipeline <code>scripts/build.py</code> → <code>scripts/ldc/*.py</code> · Charts: Apache ECharts · <a href="https://github.com/chirag127/lendenclub-loan-dashboard" target="_blank" rel="noopener">GitHub</a></p>
   <p class="muted">Personal contact details (email/mobile) are intentionally excluded from this public dataset.</p>
 </footer>
 
@@ -92,47 +92,50 @@
   Modular classic scripts (no ES modules — must keep working from file:// with no server/CORS).
   Load order: core → charts → curation → ui → boot. See assets/js/README.md.
 -->
-<script src="data/summary.js?v=24"></script>
-<script src="data/loans.js?v=24"></script>
-<script src="data/insights.js?v=24"></script>
-<script src="data/audit.js?v=24"></script>
-<script src="assets/js/core.js?v=24"></script>
-<script src="assets/js/charts/portfolio.js?v=24"></script>
-<script src="assets/js/charts/disbursement.js?v=24"></script>
-<script src="assets/js/charts/characteristics.js?v=24"></script>
-<script src="assets/js/charts/status-health.js?v=24"></script>
-<script src="assets/js/charts/risk.js?v=24"></script>
-<script src="assets/js/charts/tenure-score-risk.js?v=24"></script>
-<script src="assets/js/charts/cashflow.js?v=24"></script>
-<script src="assets/js/charts/net-returns.js?v=24"></script>
-<script src="assets/js/charts/fees.js?v=24"></script>
-<script src="assets/js/charts/allocation.js?v=24"></script>
-<script src="assets/js/charts/xirr.js?v=24"></script>
-<script src="assets/js/charts/picks.js?v=24"></script>
-<script src="assets/js/charts/decision-extra.js?v=24"></script>
-<script src="assets/js/charts/npa-year.js?v=24"></script>
-<script src="assets/js/charts/vintage.js?v=24"></script>
-    <script src="assets/js/charts/atlas.js?v=24"></script>
-<script src="assets/js/charts/return-drivers.js?v=24"></script>
-<script src="assets/js/charts/optional.js?v=24"></script>
-<script src="assets/js/curation.js?v=24"></script>
-<script src="assets/js/ui/renderer.js?v=24"></script>
-<script src="assets/js/ui/loan-picks.js?v=24"></script>
-<script src="assets/js/ui/reasons.js?v=24"></script>
-<script src="assets/js/ui/guardrails.js?v=24"></script>
-<script src="assets/js/ui/audit.js?v=24"></script>
-<script src="assets/js/ui/risk-matrix.js?v=24"></script>
-<script src="assets/js/ui/npa-year-table.js?v=24"></script>
-    <script src="assets/js/ui/vintage-table.js?v=24"></script>
-    <script src="assets/js/ui/decision-table.js?v=24"></script>
-    <script src="assets/js/ui/tabs.js?v=24"></script>
-    <script src="assets/js/ui/cards.js?v=24"></script>
-    <script src="assets/js/ui/cards-insights.js?v=24"></script>
-<script src="assets/js/ui/qa.js?v=24"></script>
-<script src="assets/js/ui/returns-statement.js?v=24"></script>
-<script src="assets/js/ui/kpis.js?v=24"></script>
-<script src="assets/js/ui/filters.js?v=24"></script>
-<script src="assets/js/ui/table.js?v=24"></script>
-<script src="assets/js/boot.js?v=24"></script>
+<script src="data/summary.js?v=26"></script>
+<script src="data/loans.js?v=26"></script>
+<script src="data/insights.js?v=26"></script>
+<script src="data/audit.js?v=26"></script>
+<script src="assets/js/core.js?v=26"></script>
+<script src="assets/js/charts/portfolio.js?v=26"></script>
+<script src="assets/js/charts/disbursement.js?v=26"></script>
+<script src="assets/js/charts/characteristics.js?v=26"></script>
+<script src="assets/js/charts/status-health.js?v=26"></script>
+<script src="assets/js/charts/risk.js?v=26"></script>
+<script src="assets/js/charts/tenure-score-risk.js?v=26"></script>
+<script src="assets/js/charts/cashflow.js?v=26"></script>
+<script src="assets/js/charts/net-returns.js?v=26"></script>
+<script src="assets/js/charts/fees.js?v=26"></script>
+<script src="assets/js/charts/allocation.js?v=26"></script>
+<script src="assets/js/charts/xirr.js?v=26"></script>
+<script src="assets/js/charts/picks.js?v=26"></script>
+<script src="assets/js/charts/decision-extra.js?v=26"></script>
+<script src="assets/js/charts/npa-year.js?v=26"></script>
+<script src="assets/js/charts/vintage.js?v=26"></script>
+<script src="assets/js/charts/atlas.js?v=26"></script>
+<script src="assets/js/charts/return-drivers.js?v=26"></script>
+<script src="assets/js/charts/optional.js?v=26"></script>
+<script src="assets/js/curation.js?v=26"></script>
+<script src="assets/js/ui/renderer.js?v=26"></script>
+<script src="assets/js/ui/loan-picks.js?v=26"></script>
+<script src="assets/js/ui/reasons.js?v=26"></script>
+<script src="assets/js/ui/guardrails.js?v=26"></script>
+<script src="assets/js/ui/audit.js?v=26"></script>
+<script src="assets/js/ui/risk-matrix.js?v=26"></script>
+<script src="assets/js/ui/npa-year-table.js?v=26"></script>
+<script src="assets/js/ui/vintage-table.js?v=26"></script>
+<script src="assets/js/ui/decision-table.js?v=26"></script>
+<script src="assets/js/ui/loan-groups.js?v=26"></script>
+<script src="assets/js/ui/fy-income.js?v=26"></script>
+<script src="assets/js/ui/unproven.js?v=26"></script>
+<script src="assets/js/ui/tabs.js?v=26"></script>
+<script src="assets/js/ui/cards.js?v=26"></script>
+<script src="assets/js/ui/cards-insights.js?v=26"></script>
+<script src="assets/js/ui/qa.js?v=26"></script>
+<script src="assets/js/ui/returns-statement.js?v=26"></script>
+<script src="assets/js/ui/kpis.js?v=26"></script>
+<script src="assets/js/ui/filters.js?v=26"></script>
+<script src="assets/js/ui/table.js?v=26"></script>
+<script src="assets/js/boot.js?v=26"></script>
 </body>
 </html>

@@ -27,8 +27,25 @@
   SECTIONS.forEach((s) => s.charts.forEach((c) => { byId[c.id] = c; }));
   const groups = [
     {
+      name: "Decision center — which loans to give",
+      sub: "Start here: the evidence-backed verdict, every ranked tenure × score cell, grouped-loan comparisons, the FY 2026–27 income estimate, and the checks behind the recommendation. All return figures are net of platform fees and defaults.",
+      /* no al1/al3 — the month-allocation charts duplicated the insight card
+         "This month's money vs where the data says to put it" and the decision
+         table's "This month ₹" column. The verdict strip + picks panel + one-table
+         already answer the allocation question. */
+      ids: ["hp1", "hp2", "rd1", "rd2", "rd4"],
+      loanPicks: true,
+      decisionTable: true,
+      loanGroups: true,
+      fyIncome: true,
+      unprovenWatch: true,
+      why: true,
+      need: "matured",
+      cards: true,
+    },
+    {
       name: "The book at a glance",
-      sub: "Book size, how the money sits across statuses and tenures, and how fast it goes out each month — the base facts before every decision.",
+      sub: "Book size, how the money sits across statuses and tenures, and how fast it goes out each month — the base facts behind every decision.",
       ids: ["g1", "g2", "d1", "c5", "dg1"],
       need: "any",
       cards: true,
@@ -98,15 +115,7 @@
       ids: ["i1", "rt4", "n10", "n11", "dx2"],
       need: "any",
     },
-    {
-      name: "The verdict — lend only these",
-      sub: "The recommendation, computed from everything above: every tenure × score cell ranked by net XIRR incl. all defaults, your per-₹1,000 allocation, the return-driver checks (rate, ticket size) and the plain-language reasons. Fund the green, skip the red.",
-      ids: ["hp1", "hp2", "al1", "al3", "rd1", "rd2", "rd4"],
-      loanPicks: true,
-      decisionTable: true,
-      why: true,
-      need: "matured",
-    },
+
   ];
   /* "Full registry" tab: every chart definition in the codebase that is NOT in the
      curated set above — nothing is hidden forever, the density switch or this tab
@@ -134,6 +143,9 @@
     if (g.npaYearTable) sec.npaYearTable = true;
     if (g.vintageTable) sec.vintageTable = true;
     if (g.decisionTable) sec.decisionTable = true;
+    if (g.loanGroups) sec.loanGroups = true;
+    if (g.fyIncome) sec.fyIncome = true;
+    if (g.unprovenWatch) sec.unprovenWatch = true;
     if (g.need) sec.need = g.need;
     if (g.whole) sec.whole = true;
     if (g.cards) sec.cards = true;

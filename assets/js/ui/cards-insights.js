@@ -22,7 +22,7 @@ addInsightCard({
   tone: "bad", icon: "💸", title: "Why 12-month loans lose money even though they quote the highest rates",
   need: (c) => c.xA["12"] != null && c.ic(12) != null,
   data: (c) => `On your completed 12-month loans only <b>${pct(c.ic(12))}</b> of the contracted interest was ever collected (vs <b>${pct(c.ic(3))}</b> for 3-month), <b>${pct(c.md(12))}</b> of completed loans defaulted, and the net XIRR with all defaults is <b>${pct(c.xA["12"])}/yr</b>.`,
-  why: () => `A year gives a weak borrower plenty of time to stop paying, and the borrowers who do repay usually foreclose early — so you receive far less than the year of interest you were promised. The platform fee is charged regardless, and the capital stays locked while 2-month money could have recycled ~6 times. It is the worst of both worlds.`,
+  why: () => `A year gives a weak borrower plenty of time to stop paying, and the borrowers who do repay usually foreclose early — so you receive far less than the year of interest you were promised. The platform fee is collected only when principal is returned in an EMI; the capital stays locked while 2-month money could have recycled ~6 times. It is the worst of both worlds.`,
 });
 addInsightCard({
   tone: "warn", icon: "🪜", title: "The ladder: contracted rate → gross → net of fees → net of defaults",
@@ -81,7 +81,7 @@ addInsightCard({
   section: "The book at a glance",
   tone: "info", icon: "📚", title: "What you are lending into — size and shape of the book",
   need: (c) => c.all.length > 0 && c.S.disbursed_amount != null,
-  data: (c) => `<b>${fmt.format(c.all.length)}</b> loans across 6 tenures, <b>${inr(c.S.disbursed_amount)}</b> disbursed and <b>${inr(c.S.received_amount)}</b> received back so far. The active book (<b>${fmt.format(c.act.length)}</b> loans) still has money working; <b>${fmt.format(c.mat.length)}</b> loans have finished their term.`,
+  data: (c) => `<b>${fmt.format(c.all.length)}</b> loans across 6 tenures, <b>${inr(c.S.disbursed_amount)}</b> disbursed and <b>${inr(c.S.total_amount_received)}</b> received back so far. The active book (<b>${fmt.format(c.act.length)}</b> loans) still has money working; <b>${fmt.format(c.mat.length)}</b> loans have finished their term.`,
   why: () => `Everything downstream — returns, risk, picks — is computed only on settled history plus live exposure. Knowing how much of the book is still unresolved tells you how much of every average is evidence versus projection.`,
 });
 addInsightCard({
@@ -193,4 +193,45 @@ addInsightCard({
   need: (c) => c.A && c.A.slices,
   data: (c) => { const a = c.A.slices["2025"].totals, b = c.A.slices["2026"].totals; return `Realised net XIRR fell from <b>${pct(a.xirr_all)}/yr</b> (2025 vintages) to <b>${pct(b.xirr_all)}/yr</b> (2026 vintages). Roughly ${pct(100 * c.st.loans_with_dpd / c.all.length)} of the book is currently behind schedule.`; },
   why: () => `Plan future expectations off the most recent cohorts, not the whole history — the early book was cleaner. Short tenures remain the hedge: they repriced your exposure monthly, and they let you stop lending to a deteriorating cohort within weeks.`,
+});
+
+/* ---------------- FY 2026–27 income plan (Decision center) ---------------- */
+addInsightCard({
+  section: "Decision center — which loans to give",
+  tone: "info", icon: "📅",
+  title: "What the FY 2026–27 income plan does (and does not) promise",
+  need: (c) => c.INS.fy_forecast && c.INS.fy_forecast.total_net_profit != null,
+  data: (c) => {
+    const F = c.INS.fy_forecast;
+    return `On the current outstanding (<b>${inr(F.starting_active_principal)}</b>), FY 2026–27 expects <b>${inr(F.total_net_profit)}</b> net profit after fees (<b>−${inr(F.existing_book.platform_fee)}</b>) and expected NPA loss (<b>−${inr(F.existing_book.expected_npa_loss)}</b>) — +<b>${inr(F.reinvestment.new_loan_net_profit)}</b> from reinvesting returned cash into the ${F.reinvestment.eligible_cell_count} strict-eligible cells. Principal returned (<b>${inr(F.existing_book.principal_returned)}</b>) is cash flow, not income.`;
+  },
+  why: () => `Income is interest minus fees minus expected defaults, and it is a projection, not a promise: it applies your own matured default and interest-collection rates by tenure, reinvests monthly, and the conservative variant haircuts new-loan profit by 25%. Withdrawable cash will differ — plan on the conservative figure.`,
+});
+addInsightCard({
+  section: "Decision center — which loans to give",
+  tone: "warn", icon: "🧪",
+  title: "The unproven cells are where the verdict is silent — read them before lending",
+  need: () => true,
+  data: (c) => {
+    const bands = [[700,725,"700–724"],[725,750,"725–749"],[750,775,"750–774"],[775,1e9,"775+"]];
+    const thin = [];
+    const tens = [2,3,4,5,6,12];
+    const cnt = {};
+    tens.forEach((t) => bands.forEach((b) => cnt[`${t}mo·${b[2]}`] = { n: 0, npa: 0 }));
+    c.mat.forEach((l) => {
+      if (!l.disbursement_date || !(l.amount > 0)) return;
+      let band = null;
+      bands.forEach((b) => { if (l.score != null && l.score >= b[0] && l.score < b[1]) band = b[2]; });
+      if (!band) return;
+      const k = `${Math.round(l.tenure)}mo·${band}`;
+      if (!cnt[k]) return;
+      cnt[k].n += 1; if (l.status === "NPA") cnt[k].npa += 1;
+    });
+    Object.values(cnt).forEach((x) => { if (x.n > 0 && x.n < 30) thin.push(x); });
+    thin.sort((a, b) => b.n - a.n);
+    if (!thin.length) return "Every tenure × score cell now has ≥ 30 matured loans — no cell is unproven in this build.";
+    const top = thin.slice(0, 3).map((x) => `${x.n} matured`).join(" · ");
+    return `${thin.length} tenure × score cells have fewer than 30 matured loans, so they are <b>not ranked</b>. The closest to proven: <b>${thin.slice(0, 3).map((x) => x.npa === 0 ? `${Object.keys(cnt).find((k) => cnt[k] === x)} (${x.n} matured, clean)` : `${Object.keys(cnt).find((k) => cnt[k] === x)} (${x.npa} defaults)`).join(" · ")}</b>.`;
+  },
+  why: () => `Every verdict on this page is built on matured history (CLOSED + NPA). A cell with 10–29 matured loans is a promising hint; one with fewer is a guess either way. Treat clean thin cells as watch-and-confirm (small tickets, recheck next month) and empty cells as untested territory — never assume an unranked cell is safe just because it is not marked Avoid.`,
 });
