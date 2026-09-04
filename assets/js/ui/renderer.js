@@ -87,6 +87,7 @@ function buildLayout() {
     if (sec.riskMatrix) cardsEl.insertAdjacentHTML("beforeend", `<div class="risk-matrix" id="risk-matrix"></div>`);
     if (sec.npaYearTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="npa-year-table" id="npa-year-table"></div>`);
     if (sec.vintageTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="vintage-table" id="vintage-table"></div>`);
+    if (sec.decisionTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="decision-table" id="decision-table"></div>`);
     if (sec.loanPicks) cardsEl.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
     if (sec.why) cardsEl.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
     if (sec.cards) cardsEl.insertAdjacentHTML("beforeend", `<div class="insight-cards" id="insight-cards-${CSS.escape(sec.name)}" data-section="${sec.name}"></div>`);
@@ -142,6 +143,7 @@ function renderAll() {
   if (document.getElementById("risk-matrix")) renderRiskMatrix();
   if (document.getElementById("npa-year-table")) renderNpaYearTable();
   if (document.getElementById("vintage-table")) renderVintageTable();
+  if (document.getElementById("decision-table")) renderDecisionTable();
   if (document.getElementById("reasons")) renderReasons();
   renderInsightCards();
 }

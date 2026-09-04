@@ -380,6 +380,26 @@ def run_audit(loans, summary, stats):
         "PASS" if ident_ok >= 0.995 * len(closed_loans) else "FAIL",
         len(closed_loans) - ident_ok, 0))
 
+    # ---- W3/W4: return_drivers buckets reconcile to the matured book ----
+    from .insights import return_drivers
+    rd = return_drivers(loans)
+    matured = [l for l in loans if l["status"] in ("CLOSED", "NPA")
+               and l["disbursement_date"] and l["repayment_start"]
+               and (l["amount"] or 0) > 0]
+    rate_sum = sum(r["loans"] for r in rd.get("by_rate", []))
+    ticket_sum = sum(r["loans"] for r in rd.get("by_ticket", []))
+    checks.append(_check(
+        "W3", "Return-driver buckets cover the matured book",
+        f"rate buckets {rate_sum} + ticket buckets {ticket_sum} of {len(matured)} matured loans "
+        "(rate bands skip unscored loans; ticket bands are exhaustive)",
+        "PASS" if ticket_sum == len(matured) else "FAIL", ticket_sum, len(matured)))
+    bad = [r for r in rd.get("by_rate", []) + rd.get("by_ticket", []) + rd.get("by_repay", [])
+           if r["xirr_all"] is not None and not (-100 <= r["xirr_all"] <= 300)]
+    checks.append(_check(
+        "W4", "Return-driver XIRRs are plausible (−100…300%/yr)",
+        f"{len(bad)} bucket XIRRs outside range" if bad else "all bucket XIRRs inside −100…300%/yr",
+        "PASS" if not bad else "FAIL", len(bad), 0))
+
     # ---- X-series: month_allocation (fresh money vs the recommendation) ----
     ma = month_allocation(loans, xirr_picks(loans))
     if ma:

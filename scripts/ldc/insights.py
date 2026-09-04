@@ -615,6 +615,10 @@ def xirr_picks(loans, min_matured=10):
             xirr = round(100 * _irr(_norm(ok_cf)), 1) if ok_cf else None
         else:
             xirr = None
+        _interest = sum(l["interest_received"] or 0 for l in sel)
+        _fee = sum(l["platform_fee"] or 0 for l in sel)
+        _npa_amt = sum(l["npa_amount"] or 0 for l in sel if l["status"] == "NPA")
+        _net = _interest - _fee - _npa_amt
         cells.append({
             "key": f"{t}mo·{band}", "tenure": t, "band": band,
             "matured": len(sel), "npa": len(npa), "closed": len(closed),
@@ -622,6 +626,8 @@ def xirr_picks(loans, min_matured=10):
             "xirr": xirr, "xirr_all": xirr_all,
             "disb": round(disb, 2),
             "avg_rate": round(avg_rate, 1) if avg_rate else None,
+            "net_1000": round(1000.0 * _net / disb, 1) if disb else None,
+            "fee_pct": round(100.0 * _fee / disb, 2) if disb else None,
         })
 
     # tier + allocation
@@ -899,6 +905,78 @@ def vintage(loans, report_end=None):
                 "principal booked (npa_amount = unrecovered principal), realized across "
                 "the whole cohort including still-active loans, and open cohorts "
                 "(more than 10% active) can still degrade",
+    }
+
+
+def return_drivers(loans):
+    """Realized net return after fees & every default, cut by the loan
+    attributes a lender actually chooses — quoted rate, ticket size and
+    repayment type. Answers "does picking a higher-rate or bigger-ticket loan
+    actually pay more?" with the same per-EMI fee + front-loaded-NPA cashflow
+    model as the XIRR engine, so every figure is directly comparable to the
+    picks' net XIRR (audit W3 reconciles the buckets to the matured book)."""
+    matured = [l for l in loans if l["status"] in ("CLOSED", "NPA")
+               and l["disbursement_date"] and l["repayment_start"]
+               and (l["amount"] or 0) > 0]
+
+    def _stats(pool):
+        if not pool:
+            return None
+        cf = []
+        for l in pool:
+            cf.extend(_loan_net_flows(l))
+        disb = sum(l["amount"] or 0 for l in pool)
+        interest = sum(l["interest_received"] or 0 for l in pool)
+        fee = sum(l["platform_fee"] or 0 for l in pool)
+        npa_amt = sum(l["npa_amount"] or 0 for l in pool if l["status"] == "NPA")
+        npa = sum(1 for l in pool if l["status"] == "NPA")
+        net = interest - fee - npa_amt
+        return {
+            "loans": len(pool), "npa": npa,
+            "disb": round(disb, 2),
+            "def_rate": round(100.0 * npa / len(pool), 1),
+            "xirr_all": round(100 * _irr(_norm(cf)), 1) if cf else None,
+            "net_1000": round(1000.0 * net / disb, 1) if disb else None,
+            "fee_pct": round(100.0 * fee / disb, 2) if disb else None,
+            "avg_rate": (round(sum(l["interest_rate"] or 0 for l in pool) / len(pool), 1)
+                         if any(l["interest_rate"] for l in pool) else None),
+        }
+
+    by_rate = []
+    for lo, hi, lab in ((0, 42, "<42%"), (42, 44, "42–43%"), (44, 46, "44–45%"),
+                        (46, 48, "46–47%"), (48, 100, "48%+")):
+        pool = [l for l in matured
+                if l["interest_rate"] is not None and lo <= l["interest_rate"] < hi]
+        s = _stats(pool)
+        if s:
+            s["label"] = lab
+            by_rate.append(s)
+
+    by_ticket = []
+    for lo, hi, lab in ((0, 251, "₹250"), (251, 501, "₹500"), (501, 1001, "₹1,000"),
+                        (1001, 2501, "₹2,500"), (2501, 100000, "₹5,000+")):
+        pool = [l for l in matured if lo <= (l["amount"] or 0) < hi]
+        s = _stats(pool)
+        if s:
+            s["label"] = lab
+            by_ticket.append(s)
+
+    by_repay = []
+    for rt in ("MONTHLY", "DAILY"):
+        pool = [l for l in matured if (l.get("repayment_type") or "").upper() == rt]
+        s = _stats(pool)
+        if s:
+            s["label"] = rt.title()
+            by_repay.append(s)
+
+    return {
+        "by_rate": by_rate,
+        "by_ticket": by_ticket,
+        "by_repay": by_repay,
+        "note": "matured loans only (CLOSED + NPA); net XIRR incl. every default and fee, "
+                "same cashflow model as xirr_picks (per-EMI fee on principal returned, "
+                "NPA receipts front-loaded to the estimated default month); net_1000 = "
+                "(interest − fees − NPA principal) per ₹1,000 lent over the loan's life",
     }
 
 

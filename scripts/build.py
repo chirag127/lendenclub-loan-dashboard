@@ -53,6 +53,7 @@ def main():
         "xirr_picks": xirr_picks_payload,
         "month_allocation": insights.month_allocation(loans, xirr_picks_payload),
         "fee_schedule": insights.fee_schedule(loans),
+        "return_drivers": insights.return_drivers(loans),
         "active_xirr": insights.active_xirr(loans),
         "expected_emi_timeline": insights.expected_emi_timeline(loans),
     }

@@ -494,3 +494,40 @@ table.nyt { min-width: 1180px; }
 table.nyt.vt { min-width: 1420px; }
 .vt td.dm-cell, .vt th { white-space: nowrap; }
 .vt .nyt-lab { text-align: left; }
+
+/* ---------- the one-table decision view (plain HTML) ---------- */
+.decision-table {
+  margin: 0 0 16px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(51, 65, 85, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.dt-wrap h3 { margin: 0 0 4px; font-size: 15px; }
+.dt-sub { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.dt-foot { margin: 10px 0 0; font-size: 11.5px; }
+.table-scroll { overflow-x: auto; }
+table.dt-table { min-width: 1180px; border-collapse: collapse; font-size: 12px; width: 100%; }
+.dt-table th {
+  text-align: left; padding: 7px 9px; white-space: nowrap; cursor: pointer;
+  color: #8fa3c0; border-bottom: 1px solid rgba(51, 65, 85, 0.6); user-select: none;
+}
+.dt-table th:hover { color: #e2e8f0; }
+.dt-table td { padding: 6px 9px; border-bottom: 1px solid rgba(51, 65, 85, 0.25); white-space: nowrap; }
+.dt-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dt-table tr:hover td { background: rgba(148, 163, 184, 0.06); }
+.dt-tier {
+  display: inline-block; padding: 1px 8px; border-radius: 999px;
+  border: 1px solid; font-size: 10.5px; font-weight: 600; letter-spacing: 0.3px;
+}
+.dt-table tr.dt-avoid td { background: rgba(248, 113, 113, 0.05); }
+.dt-table tr.dt-core td:first-child { box-shadow: inset 3px 0 0 #34d399; }
+.dt-table tr.dt-support td:first-child { box-shadow: inset 3px 0 0 #38bdf8; }
+.dt-table tr.dt-avoid td:first-child { box-shadow: inset 3px 0 0 #f87171; }
+
+/* verdict badge in the loan register */
+.badge.verdict-core    { color: #34d399; border-color: #34d39955; background: #34d3991a; }
+.badge.verdict-support { color: #38bdf8; border-color: #38bdf855; background: #38bdf81a; }
+.badge.verdict-gate    { color: #fbbf24; border-color: #fbbf2455; background: #fbbf241a; }
+.badge.verdict-avoid   { color: #f87171; border-color: #f8717155; background: #f871711a; }
+.badge.verdict-unproven { color: #94a3b8; border-color: #94a3b855; background: #94a3b81a; }

@@ -88,8 +88,9 @@
     {
       name: "The verdict — lend only these",
       sub: "The recommendation, computed from everything above: every tenure × score cell ranked by net XIRR incl. all defaults, your per-₹1,000 allocation and the plain-language reasons. Fund the green, skip the red.",
-      ids: ["hp1", "hp2", "al1", "al2", "al3"],
+      ids: ["hp1", "hp2", "al1", "al2", "al3", "rd1", "rd2", "rd3"],
       loanPicks: true,
+      decisionTable: true,
       why: true,
       need: "matured",
     },
@@ -119,6 +120,7 @@
     if (g.riskMatrix) sec.riskMatrix = true;
     if (g.npaYearTable) sec.npaYearTable = true;
     if (g.vintageTable) sec.vintageTable = true;
+    if (g.decisionTable) sec.decisionTable = true;
     if (g.need) sec.need = g.need;
     if (g.whole) sec.whole = true;
     if (g.cards) sec.cards = true;
