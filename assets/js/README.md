@@ -61,8 +61,7 @@ can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` ta
 
 
 ### Curation — the single source of truth for what renders
-`curation.js` rebuilds `SECTIONS` into the 9-section decision flow (book →
-supply → realized returns → expected future returns → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 45 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated; the expected-future-returns section keeps the forward-looking charts up front)**.
+`curation.js` rebuilds `SECTIONS` into the decision flow (book → supply → realized returns → expected future returns → **your questions answered** → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 45 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated; the expected-future-returns section keeps the forward-looking charts up front; the Q&A group holds no charts — it renders the `ui/qa.js` accordion instead)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file
@@ -76,6 +75,7 @@ To show or hide a chart, edit its id in that file's group lists — nothing else
 | `risk-matrix.js` | the tenure × score risk reference **table** (plain HTML — another form of showing the data) |
 | `npa-year-table.js` | the NPA-by-year **ledger** (plain HTML): 2025/2026 × tenure, tenure-level vs annualized NPA and ₹-loss columns, from the pipeline's `npa_by_year` payload |
 | `decision-table.js` | the **one-table decision view** (plain HTML): every ranked tenure × score cell — net XIRR incl. all defaults, repaying-only XIRR, matured default rate, net ₹/₹1,000, fee % of lent, quoted rate, tier, recommended ₹/₹1,000, this-month fresh ₹ (availability/drift) — sortable by any column; also exports `verdictCell(l)` / `verdictRank(l)` used by `table.js` to tag every loan in the register with its cell's verdict |
+| `qa.js` | the **"Your questions answered"** Q&A accordion (plain HTML `<details>`, works from file://): 8 headline questions — expected annualized return vs 25%/yr, are the returns really net of fees & defaults (both formulas), simple ROI vs XIRR, which tenure × score to give (realized vs projected table), keep-lending-as-before, rates & the ₹2,500 ticket, the fee bill, future-vs-past — every number read live from the data globals at render time via `cardCtx()`, and answers that degrade gracefully when a figure is missing |
 | `returns-statement.js` | the P&L / ROI / annualized-return statement |
 | `kpis.js` | the 12 KPI cards |
 | `filters.js` | the status filter chips |

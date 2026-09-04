@@ -1,9 +1,9 @@
 /* ============================================================
  * curation.js — DECISION VIEW
- * Rebuilds SECTIONS from the registry into the 9-section decision flow and the curated render set
- * (currently 47 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
- * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
- * source of truth for what shows.
+ * Rebuilds SECTIONS from the registry into the decision flow (groups with chart ids,
+ * panels, Q&A) and the curated render set (currently 45 charts — NOT a fixed cap: add a
+ * chart id to a group's ids and it renders, remove one and it disappears). Runs after all
+ * chart files; its id lists are the single source of truth for what shows.
  *
  * Curation rules (kept deliberately tight):
  *   • one chart per question — near-duplicates stay in the registry, not on the page;
@@ -54,6 +54,11 @@
       whole: true,
       need: "any",
       cards: true,
+    },
+    {
+      name: "Your questions answered",
+      qa: true,
+      sub: "The headline questions behind the whole dashboard — expected annualized return vs 25%/yr, whether the numbers really are net of fees &amp; defaults, simple ROI vs XIRR, which tenures to give, rates &amp; ticket sizes, the fee bill, and whether the future will match the past — answered in plain language with live numbers (whole-book answers; the charts above react to the filters).",
     },
     {
       name: "Where loans default — risk by tenure × score",
@@ -120,7 +125,7 @@
   }
   SECTIONS.length = 0;
   groups.forEach((g) => {
-    const sec = { name: g.name, sub: g.sub, charts: g.ids.map((id) => byId[id]).filter(Boolean) };
+    const sec = { name: g.name, sub: g.sub, charts: (g.ids || []).map((id) => byId[id]).filter(Boolean) };
     if (g.guardrails) sec.guardrails = true;
     if (g.returnsStatement) sec.returnsStatement = true;
     if (g.loanPicks) sec.loanPicks = true;
@@ -132,6 +137,7 @@
     if (g.need) sec.need = g.need;
     if (g.whole) sec.whole = true;
     if (g.cards) sec.cards = true;
+    if (g.qa) sec.qa = true;
     SECTIONS.push(sec);
   });
 })();

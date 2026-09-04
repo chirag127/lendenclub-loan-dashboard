@@ -41,6 +41,7 @@ const GROUP_CHIP_LABELS = {
   "NPA by origination year — tenure-level vs annualized": "NPA by year",
   "Defaults by origination cohort — curves, rates & the ₹ bill": "Cohort curves",
   "Cashflow & watch-outs": "Cashflow",
+  "Your questions answered": "Q&A",
   "The verdict — lend only these": "The verdict",
 };
 function groupChipLabel(sec) {
@@ -61,6 +62,7 @@ function renderTabs() {
       name: s.name,
       label: s.name === full ? "Full registry" : s.name,
       count: visibleCharts(s).length,
+      hideCount: !!s.qa, // Q&A group holds no charts — its pill would lie
     })));
   const chips = state.view === "All"
     ? activeSections().map((s, i) => `
@@ -73,7 +75,7 @@ function renderTabs() {
       ${tabs.map((t) => `
         <button class="vtab ${state.view === t.name ? "on" : ""}" role="tab"
           aria-selected="${state.view === t.name}" data-view="${t.name}" title="${t.name}">
-          ${t.label}<span class="vtab-n">${t.count}</span>
+          ${t.label}${t.hideCount ? "" : `<span class="vtab-n">${t.count}</span>`}
         </button>`).join("")}
     </div>
     <div class="density-row">

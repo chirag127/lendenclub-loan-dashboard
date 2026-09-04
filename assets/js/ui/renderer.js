@@ -95,10 +95,11 @@ function buildLayout() {
     const head = document.createElement("header");
     head.className = "group-head";
     const n = visibleCharts(sec).length;
+    const pill = n ? `${n} chart${n === 1 ? "" : "s"}` : (sec.qa ? "Q&A" : "0 charts");
     head.innerHTML =
       `<span class="grp-num">${String(i + 1).padStart(2, "0")}</span>` +
       `<div class="grp-txt"><h2>${sec.name}</h2><p>${sec.sub}</p></div>` +
-      `<span class="grp-count">${n} chart${n === 1 ? "" : "s"}</span>`;
+      `<span class="grp-count">${pill}</span>`;
     grp.appendChild(head);
 
     /* data-presence gate: a filtered slice with none of the loans this section
@@ -118,6 +119,7 @@ function buildLayout() {
     if (sec.loanPicks) grp.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
     if (sec.why) grp.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
     if (sec.cards) grp.insertAdjacentHTML("beforeend", `<div class="insight-cards" id="insight-cards-${CSS.escape(sec.name)}" data-section="${sec.name}"></div>`);
+    if (sec.qa) grp.insertAdjacentHTML("beforeend", `<div class="qa" id="qa"></div>`);
 
     if (sec.charts.length) {
       const grid = document.createElement("div");
@@ -173,6 +175,7 @@ function renderAll() {
   if (document.getElementById("vintage-table")) renderVintageTable();
   if (document.getElementById("decision-table")) renderDecisionTable();
   if (document.getElementById("reasons")) renderReasons();
+  if (document.getElementById("qa")) renderQA();
   renderInsightCards();
 }
 

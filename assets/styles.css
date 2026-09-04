@@ -572,3 +572,59 @@ table.dt-table { min-width: 1180px; border-collapse: collapse; font-size: 12px; 
 .badge.verdict-gate    { color: #fbbf24; border-color: #fbbf2455; background: #fbbf241a; }
 .badge.verdict-avoid   { color: #f87171; border-color: #f8717155; background: #f871711a; }
 .badge.verdict-unproven { color: #94a3b8; border-color: #94a3b855; background: #94a3b81a; }
+/* ---------- "Your questions answered" Q&A accordion (plain HTML, no chart lib) ---------- */
+.qa { margin: 0 0 18px; }
+.qa-grid { display: grid; gap: 10px; }
+.qa-item {
+  background: linear-gradient(180deg, var(--card), var(--bg-2));
+  border: 1px solid var(--border); border-left: 4px solid var(--blue);
+  border-radius: 12px; overflow: hidden;
+}
+.qa-item.tone-good { border-left-color: var(--green); }
+.qa-item.tone-warn { border-left-color: var(--amber); }
+.qa-item.tone-bad { border-left-color: var(--red); }
+.qa-item.tone-info { border-left-color: var(--blue); }
+.qa-item summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 15px; cursor: pointer; list-style: none; user-select: none;
+}
+.qa-item summary::-webkit-details-marker { display: none; }
+.qa-ico { font-size: 16px; line-height: 1; }
+.qa-q { font-size: 13.5px; font-weight: 700; color: #e6edf7; flex: 1; line-height: 1.35; }
+.qa-item.tone-good .qa-q { color: #a7f3d0; }
+.qa-item.tone-warn .qa-q { color: #fde68a; }
+.qa-item.tone-bad .qa-q { color: #fecaca; }
+.qa-caret { color: var(--muted); font-size: 11px; transition: transform 0.15s; }
+.qa-item[open] .qa-caret { transform: rotate(180deg); }
+.qa-a {
+  padding: 2px 15px 14px; font-size: 12.5px; color: #c6d4e8; line-height: 1.65;
+  border-top: 1px dashed rgba(51, 65, 85, 0.5); margin: 0 15px 0; padding-top: 11px;
+}
+.qa-a p { margin: 0 0 8px; }
+.qa-a p:last-child { margin-bottom: 0; }
+.qa-a b { color: #fff; font-variant-numeric: tabular-nums; }
+.qa-item.tone-good .qa-a b { color: #86efac; }
+.qa-item.tone-warn .qa-a b { color: #fcd34d; }
+.qa-item.tone-bad .qa-a b { color: #fca5a5; }
+.qa-item.tone-info .qa-a b { color: #93c5fd; }
+.qa-a ul { margin: 4px 0 8px; padding-left: 18px; }
+.qa-a li { margin-bottom: 6px; }
+.qa-a li b { color: #fff; }
+.qa-a .dim { color: #64748b; font-weight: 400; }
+.qa-tbl {
+  width: 100%; border-collapse: collapse; font-size: 12px; margin: 2px 0 10px;
+  border: 1px solid rgba(51, 65, 85, 0.35); border-radius: 10px; min-width: 520px;
+}
+.qa-tbl th {
+  background: var(--card-2); color: var(--muted); font-weight: 600; padding: 6px 10px;
+  border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+}
+.qa-tbl td {
+  padding: 6px 10px; border-bottom: 1px solid rgba(31, 46, 74, 0.4);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.qa-tbl tbody tr:last-child td { border-bottom: none; }
+.qa-tbl tbody tr:nth-child(2) td, .qa-tbl tbody tr:nth-child(3) td { color: #86efac; }
+.qa-tbl tbody tr:nth-last-child(2) td { color: #fcd34d; }
+.qa-tbl tbody tr:last-child td { color: #fca5a5; font-weight: 700; }
+.qa-tbl td b { font-weight: 700; }
