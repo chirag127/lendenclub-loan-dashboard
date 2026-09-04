@@ -7,8 +7,8 @@ so **load order matters** and is fixed in `index.html`.
 
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
-(infrastructure)              (91 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 64 of 91,
+(infrastructure)              (95 chart definitions)   (decide what       (DOM renderers) (init & start)
+                                                       renders: 67 of 95,
                                                        not a fixed cap)
 ```
 
@@ -20,7 +20,7 @@ core.js                       → charts/*.js            → curation.js      �
 | `core.js` | Formatting helpers (`inr`, `fmt`, `pct`…), palette/theme, shared state (`LOANS`, `SUMMARY`, `MONTHS`, filters), data helpers, tenure × score stats, net-projection maths, shared ECharts option pieces, `polish()` styling pass, and the chart registry (`SECTIONS` + `addChart`). |
 
 ### Chart definitions (`charts/`) — one topic per file
-All **91** charts are defined here. Which ones *render* is decided later by `curation.js`.
+All **95** charts are defined here. Which ones *render* is decided later by `curation.js`.
 | File | Charts | Rendered in the decision view |
 |---|---|---|
 | `portfolio.js` | g1–g4 | g1, g2, g3 |
@@ -31,6 +31,7 @@ All **91** charts are defined here. Which ones *render* is decided later by `cur
 | `tenure-score-risk.js` | n1–n12 | n1–n12 |
 | `cashflow.js` | i1–i8 | i1, i3, i5, i6, i7, i8 |
 | `net-returns.js` | nr1–nr11 | nr1–nr8, nr10, nr11 |
+| `fees.js` | fe1–fe3 | all — fee schedule by tenure (repaid vs paid-so-far), fee ₹ vs interest received, total ₹ impact of fees on net returns |
 | `xirr.js` | rt1–rt6 | rt1–rt6 |
 | `picks.js` | hp1–hp2 | hp1, hp2 |
 | `decision-extra.js` | dx1–dx4, dg1 | all — new decision views (net-XIRR matrix heatmap, NPA recovery, contracted-vs-collected interest, active money by vintage, gauge dials) |
@@ -41,7 +42,7 @@ All **91** charts are defined here. Which ones *render* is decided later by `cur
 add a new `addChart(...)` and list its id in a `curation.js` group and it renders; the same file
 can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` table below).### Curation — the single source of truth for what renders
 `curation.js` rebuilds `SECTIONS` into the 7-section decision flow (book →
-supply → returns → risk → NPA-by-year → watch-outs → verdict) and keeps the **curated render set (currently 64)**.
+supply → returns → risk → NPA-by-year → watch-outs → verdict) and keeps the **curated render set (currently 67)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file

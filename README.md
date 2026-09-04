@@ -1,6 +1,6 @@
 # 💚 LenDenClub Loan Analytics Dashboard
 
-Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — 64 curated charts (of 91 defined) plus gauge dials, plain-HTML tables (tenure × score risk matrix + an NPA-by-year ledger), KPIs, recommendation panels and a full loan register. Every view answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
+Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — 67 curated charts (of 95 defined) plus gauge dials, plain-HTML tables (tenure × score risk matrix + an NPA-by-year ledger), KPIs, recommendation panels and a full loan register. Every view answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
 
 The curated set is **not fixed at 50** — more charts and other forms (gauges, tables, matrices) are added by listing their ids in one file (`assets/js/curation.js`).
 
@@ -42,13 +42,13 @@ The curated set is **not fixed at 50** — more charts and other forms (gauges, 
 - **Recovery is strong:** cumulative principal received has tracked cumulative disbursements closely, and 100% of interest/fees received to date total ₹2.53L vs ₹45.1K paid in platform fees.
 - 24 daily-repayment loans vs 2,969 monthly — daily loans are the minority, mostly 2-month tenures.
 
-## Dashboard features — a decision flow, 64 charts in 7 sections (not a fixed cap)
+## Dashboard features — a decision flow, 67 charts in 7 sections (not a fixed cap)
 
 Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → NPA-by-year → watch-outs → verdict.** Charts are one form of showing the data; the dashboard also uses **ECharts gauge dials** and **plain-HTML tables** (loan register + the tenure × score risk matrix + the NPA-by-year ledger) wherever a table or dial reads better than a chart.
 
 - **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate, active/closed/NPA counts, DPD exposure
 - **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 32 checks (24 PASS · 8 notes · 0 FAIL), regenerated on every build
-- **64 interactive charts** (Apache ECharts) in 7 sections + extra forms:
+- **67 interactive charts** (Apache ECharts) in 7 sections + extra forms:
   - *The book at a glance* (8) — status split, money in the portfolio, repayment-type split, monthly disbursed ₹, monthly disbursed by tenure, tenure distribution, disbursed ₹ by tenure + **three gauge dials** (net XIRR incl. defaults, NPA rate, NPA recovery)
   - *Borrower supply & ticket sizes* (4) — avg ticket by tenure, score histogram, avg score by month (is quality trending?), avg ticket by score band (high scores = bigger loans)
   - *What loans actually pay — net of fees & defaults* (15) — P&L/ROI/annualized statement panel, XIRR by tenure (successful vs **incl. all defaults**), simple-vs-XIRR and amortization explainers, realized-vs-projected net ROI by tenure, the full rate ladder (sticker → fees → defaults → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, **projected net-ROI heatmap (tenure × score)**, default-rate sensitivity, net ₹ per loan by tenure, **net-XIRR matrix heatmap (tenure × score)**, contracted-vs-collected interest by tenure, and the money-map bubble
@@ -59,7 +59,7 @@ Everything below the KPI row is ordered the way you decide: **glance → supply 
 - **Live filters** — status chips, repayment type, single-month data window (charts + KPIs + table react)
 - **Sortable, searchable loan register** — all 2,993 loans (loan ID, order ID, dates, amount, status, rate, tenure, score, DPD, received, interest, P&L)
 
-The remaining 27 chart definitions (seasonality, status treemaps, correlations, pure monthly actuals…) stay in `assets/js/charts/*.js` but are **not rendered**. Nothing is hard-capped: the render set is curated in one place (`assets/js/curation.js`) — add a chart id to a group and it shows; add a new `addChart(...)` and it becomes available there too.
+The remaining 28 chart definitions (seasonality, status treemaps, correlations, pure monthly actuals…) stay in `assets/js/charts/*.js` but are **not rendered**. Nothing is hard-capped: the render set is curated in one place (`assets/js/curation.js`) — add a chart id to a group and it shows; add a new `addChart(...)` and it becomes available there too.
 
 ## Repo structure
 
@@ -71,8 +71,8 @@ The remaining 27 chart definitions (seasonality, status treemaps, correlations, 
 │   └── js/               # modular classic scripts (no build, works from file://)
 │       ├── README.md     # module map + load order
 │       ├── core.js       # helpers, state, chart registry (SECTIONS + addChart)
-│       ├── charts/       # all 91 chart definitions, one topic per file
-│       ├── curation.js   # ★ what renders: the 64 decision charts in 7 sections
+│       ├── charts/       # all 95 chart definitions, one topic per file
+│       ├── curation.js   # ★ what renders: the 67 decision charts in 7 sections
 │       ├── ui/           # one renderer per responsibility (panels, KPIs, tables…)
 │       └── boot.js       # CDN fallback, init(), filter listeners (load last)
 ├── data/                 # generated by scripts/build.py (json + js globals)

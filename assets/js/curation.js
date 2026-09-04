@@ -1,7 +1,7 @@
 /* ============================================================
  * curation.js — DECISION VIEW
  * Rebuilds SECTIONS from the registry into the 7-section decision flow and the curated render set
- * (currently 64 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * (currently 67 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
  * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
  * source of truth for what shows.
  * ------------------------------------------------------------
@@ -10,7 +10,7 @@
  * ============================================================ */
 
 /* ============ DECISION VIEW — the curated set that answers "which loans should I fund?" ============
-   All 91 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
+   All 95 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
    decision flow: glance -> supply -> returns -> risk -> NPA-by-year -> cashflow/watch-outs -> verdict. The count is not
    fixed at 50 — more charts and other forms (gauges, tables, matrices) are added by listing them here.
    Everything shown nets out fees + NPAs or feeds the risk/returns math behind the picks. */
@@ -31,7 +31,7 @@
     {
       name: "What loans actually pay — net of fees & defaults",
       sub: "Every return here already subtracts platform fees and the NPA book: simple ROI and money-weighted XIRR with monthly-EMI timing, by tenure and by score band, the full rate ladder and what a ₹1,000 loan really nets.",
-      ids: ["rt1", "rt3", "rt5", "nr1", "nr2", "nr3", "nr4", "nr5", "nr6", "nr7", "nr8", "nr10", "dx1", "dx3", "nr11"],
+      ids: ["rt1", "rt3", "rt5", "nr1", "nr2", "nr3", "nr4", "nr5", "fe1", "fe2", "fe3", "nr6", "nr7", "nr8", "nr10", "dx1", "dx3", "nr11"],
       returnsStatement: true,
     },
     {
