@@ -6,7 +6,7 @@
  * ============================================================ */
 
 /* ============ A. Portfolio overview ============ */
-addChart("Portfolio overview", "Headline numbers from the manual lending report (Dec 2025 – Sep 2026)", "g1", "Loan status split", "Share of the 2,993 loans by current status", 300, (L) => {
+addChart("Portfolio overview", "Headline numbers from the manual lending report (Dec 2025 – Sep 2026)", "g1", "Loan status split", () => `Share of the ${fmt.format(LOANS.length)} loans by current status`, 300, (L) => {
   const counts = {};
   L.forEach((l) => { counts[l.status] = (counts[l.status] || 0) + 1; });
   const names = Object.keys(counts).sort();

@@ -42,7 +42,7 @@
     {
       name: "What loans actually pay — net of fees & defaults",
       sub: "Every return here already subtracts platform fees and the NPA book: the realized XIRR by tenure, the sticker→fees→defaults ladder, the two pick heatmaps (realized and projected), sensitivity to worse defaults, and where the big money actually sits.",
-      ids: ["rt1", "rt3", "nr2", "fe3", "dx1", "dx3", "nr6", "nr7", "nr11"],
+      ids: ["rt1", "rt3", "nr2", "fe3", "fe4", "dx1", "dx3", "nr6", "nr7", "nr11"],
       returnsStatement: true,
       need: "matured",
       cards: true,
@@ -88,7 +88,7 @@
     {
       name: "The verdict — lend only these",
       sub: "The recommendation, computed from everything above: every tenure × score cell ranked by net XIRR incl. all defaults, your per-₹1,000 allocation and the plain-language reasons. Fund the green, skip the red.",
-      ids: ["hp1", "hp2"],
+      ids: ["hp1", "hp2", "al1", "al2", "al3"],
       loanPicks: true,
       why: true,
       need: "matured",

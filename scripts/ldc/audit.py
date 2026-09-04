@@ -10,7 +10,7 @@ through the build again.
 """
 
 from .clean import to_num
-from .insights import tenure_matrix, score_band
+from .insights import tenure_matrix, score_band, month_allocation, xirr_picks
 
 TOL = 0.01  # rupee rounding tolerance
 
@@ -303,6 +303,91 @@ def run_audit(loans, summary, stats):
         f"matured loans report XIRR; {len(wild)} outside −100…300%/yr" if not wild else
         f"cells outside −100…300%/yr: {wild}",
         "PASS" if not wild else "FAIL", len(wild), 0))
+
+    # ---- F-series: the platform-fee model (% of principal returned per EMI) ----
+    fs = {t: [] for t in (2, 3, 4, 5, 6, 12)}
+    bad = 0
+    for l in loans:
+        t = int(l["tenure"] or 0)
+        if t in fs and (l["principal_received"] or 0) > 0:
+            r = 100 * (l["platform_fee"] or 0) / (l["principal_received"] or 1)
+            fs[t].append(r)
+    def _med(v):
+        v = sorted(v)
+        return v[len(v) // 2] if v else None
+    sched = {2: 1.0, 3: 1.0, 4: 3.0, 5: 3.0, 6: 3.0, 12: 6.0}
+    eras = {4: ("2026-04", 2.3), 5: ("2026-06", 2.5)}  # tenure -> (since, old rate)
+
+    def _era_medians(t, since=None):
+        pool = [l for l in loans if int(l["tenure"] or 0) == t
+                and (l["principal_received"] or 0) > 0]
+        if since:
+            pool = [l for l in pool if (l["disbursement_date"] or "")[:7] >= since]
+        return _med([100 * (l["platform_fee"] or 0) / (l["principal_received"] or 1) for l in pool]) if len(pool) >= 10 else None
+
+    # era-aware expected rate: tenures without a mid-book change are judged
+    # all-time; changed tenures are judged within each pricing era
+    drifts, parts = [], []
+    for t in sorted(fs):
+        if t in eras:
+            since, old = eras[t]
+            m_old = _era_medians(t, None)  # all-time pool dominated by pre-change loans
+            pre = [l for l in loans if int(l["tenure"] or 0) == t
+                   and (l["principal_received"] or 0) > 0
+                   and (l["disbursement_date"] or "")[:7] < since]
+            if len(pre) >= 10:
+                m_old = _med([100 * (l["platform_fee"] or 0) / (l["principal_received"] or 1) for l in pre])
+                parts.append(f"{t}mo pre-{since}: median {m_old:.2f}% vs {old:.1f}% (n={len(pre)})")
+                drifts.append(abs(m_old - old))
+            m_new = _era_medians(t, since)
+            if m_new is not None:
+                parts.append(f"{t}mo ≥ {since}: median {m_new:.2f}% vs {sched[t]:.1f}%")
+                drifts.append(abs(m_new - sched[t]))
+        elif fs[t]:
+            m = _med(fs[t])
+            parts.append(f"{t}mo: median {m:.2f}% vs {sched[t]:.1f}% (n={len(fs[t])})")
+            drifts.append(abs(m - sched[t]))
+    # individual loans may deviate (early foreclosure / payment plans); the
+    # model is judged on the era medians, plus a hard bound on the whole pool
+    outside = sum(1 for t in fs for r in fs[t] if abs(r - sched[t]) > 1.0
+                  and not (t in eras and abs(r - eras[t][1]) <= 1.0))
+    total_pool = sum(len(fs[t]) for t in fs)
+    checks.append(_check(
+        "F1", "Fee = schedule % × principal returned (era medians per tenure)",
+        "; ".join(parts),
+        "PASS" if drifts and max(drifts) <= 0.2 else "FAIL",
+        round(max(drifts), 3) if drifts else 0, 0))
+    checks.append(_check(
+        "F2", "Fee rate outliers within ±1pt of schedule",
+        f"{outside} of {total_pool} loans with principal received deviate >1pt from the schedule",
+        "PASS" if outside / max(1, total_pool) < 0.02 else "FAIL",
+        outside, 0))
+    checks.append(_check(
+        "F3", "Report 'pnl' column ignores the platform fee",
+        f"pnl = total_received − amount on {sum(1 for l in loans if l['status'] == 'CLOSED' and abs((l['pnl'] or 0) - ((l['total_received'] or 0) - (l['amount'] or 0))) <= 1)} of "
+        f"{sum(1 for l in loans if l['status'] == 'CLOSED')} closed loans — ₹{sum(l['platform_fee'] or 0 for l in loans if l['status'] in ('CLOSED', 'NPA', 'ACTIVE')):,.0f} of fees "
+        "are missing from the platform's own P&L; dashboard nets the fee explicitly",
+        "INFO",
+        sum(1 for l in loans if l["status"] == "CLOSED" and abs((l["pnl"] or 0) - ((l["total_received"] or 0) - (l["amount"] or 0))) <= 1), 0))
+    closed_loans = [l for l in loans if l["status"] == "CLOSED"]
+    ident_ok = sum(1 for l in closed_loans
+                   if abs((l["total_received"] or 0) - (l["principal_received"] or 0) - (l["interest_received"] or 0)) <= 1)
+    checks.append(_check(
+        "F4", "Receipts identity: total_received = principal + interest",
+        f"{ident_ok} of {len(closed_loans)} closed loans hold the identity "
+        "(fee is a separate column, not inside receipts; residual differences are "
+        "source-report rounding documented in X1)",
+        "PASS" if ident_ok >= 0.995 * len(closed_loans) else "FAIL",
+        len(closed_loans) - ident_ok, 0))
+
+    # ---- X-series: month_allocation (fresh money vs the recommendation) ----
+    ma = month_allocation(loans, xirr_picks(loans))
+    if ma:
+        checks.append(_check(
+            "X1", f"Fresh-money allocation month {ma['month']} reconciles",
+            f"{ma['loans']} still-open loans, ₹{ma['amount']:,.0f} disbursed; {ma['core_pct']:.1f}% went into core cells, "
+            f"₹{ma['misaligned_amount']:,.0f} ({ma['misaligned_loans']} loans) into avoid/conditional cells",
+            "INFO", ma["core_pct"], None))
 
     # ---- verdict ----
     fails = [c for c in checks if c["status"] == "FAIL"]

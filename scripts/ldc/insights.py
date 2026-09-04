@@ -21,6 +21,126 @@ def score_band(score):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Platform-fee model — verified against the report, not assumed.
+#
+# The fee accrues per EMI as a fixed % of the PRINCIPAL RETURNED in that EMI
+# (reducing balance), confirmed in the data: on every loan that has received
+# principal, fee ÷ principal-returned equals the schedule rate to within
+# rounding — for CLOSED, ACTIVE and NPA loans alike. The schedule (current):
+#   2mo 1.0% · 3mo 1.0% · 4mo 3.0% · 5mo 3.0% · 6mo 3.0% · 12mo 6.0%
+# with two documented mid-book changes: 4-month loans disbursed before
+# Apr-2026 paid 2.3%, 5-month before Jun-2026 paid 2.5%.
+# Note: the report's own 'pnl' column records receipts − amount (fee NOT
+# deducted) — the platform's P&L ignores its fee; every net figure on this
+# dashboard deducts the fee explicitly.
+FEE_SCHEDULE = {2: 1.0, 3: 1.0, 4: 3.0, 5: 3.0, 6: 3.0, 12: 6.0}
+FEE_ERA = {  # tenure -> (from disb month, {old_pct, new_pct})
+    4: ("2026-04", 2.3, 3.0),
+    5: ("2026-06", 2.5, 3.0),
+}
+
+
+def _fee_rate(tenure, disb_month):
+    """Fee % of principal returned for a loan, honouring its disbursement era."""
+    t = int(tenure or 0)
+    era = FEE_ERA.get(t)
+    if era:
+        return era[2] if (disb_month and disb_month >= era[0]) else era[1]
+    return FEE_SCHEDULE.get(t)
+
+
+def fee_schedule(loans):
+    """Empirically verify the fee model and emit the schedule.
+
+    For each tenure (and each pricing era for the tenures that changed), the
+    median fee ÷ principal-returned over every loan that has received
+    principal — CLOSED, ACTIVE and NPA alike — is shown next to the schedule
+    rate the model claims. Also emits the ₹ the platform's own 'pnl' column
+    ignores (it records receipts − amount, without the fee).
+    """
+    observed = []
+    for t in TENURES:
+        pool = [l for l in loans
+                if int(l["tenure"] or 0) == t and (l["principal_received"] or 0) > 0]
+        if not pool:
+            continue
+        eras = [("all time", None)]
+        if t in FEE_ERA:
+            since, old, new = FEE_ERA[t]
+            eras = [(f"disbursed < {since} ({old}%)", ("<", since)),
+                    (f"disbursed ≥ {since} ({new}%)", (">=", since))]
+        for label, cond in eras:
+            sel = pool
+            if cond:
+                op, since = cond
+                sel = [l for l in pool
+                       if ((l["disbursement_date"] or "")[:7] and (
+                           (l["disbursement_date"])[:7] < since if op == "<"
+                           else (l["disbursement_date"])[:7] >= since))]
+            if not sel:
+                continue
+            rates = sorted(100 * (l["platform_fee"] or 0) / (l["principal_received"] or 1)
+                           for l in sel)
+            n = len(rates)
+            observed.append({
+                "tenure": t, "era": label, "loans": n,
+                "median_pct": round(rates[n // 2], 2),
+                "p10_pct": round(rates[max(0, n // 10)], 2),
+                "p90_pct": round(rates[min(n - 1, 9 * n // 10)], 2),
+                "schedule_pct": _fee_rate(t, sel[0]["disbursement_date"][:7] if cond else None),
+            })
+    pnl_ignored = round(sum((l["platform_fee"] or 0) for l in loans
+                            if l["status"] in ("CLOSED", "NPA", "ACTIVE")), 2)
+    return {
+        "model": "fee = schedule % × the principal returned in each EMI (collected as "
+                 "principal is repaid — a default stops future fees; a foreclosure "
+                 "never pays the remaining ones)",
+        "schedule": {str(t): FEE_SCHEDULE[t] for t in TENURES},
+        "changes": [
+            {"tenure": t, "from_pct": FEE_ERA[t][1], "to_pct": FEE_ERA[t][2],
+             "from_month": FEE_ERA[t][0]}
+            for t in sorted(FEE_ERA)
+        ],
+        "observed": observed,
+        "pnl_note": "the report's own 'pnl' column = total_received − amount (fee NOT "
+                    "deducted); every net figure on this dashboard deducts the fee",
+        "pnl_ignored_fees": pnl_ignored,
+    }
+
+
+def _default_month(l):
+    """EMI index at which an NPA is estimated to have stopped paying, from the
+    principal actually received (equal principal per EMI — the same convention
+    the dashboard discloses everywhere)."""
+    t = int(l["tenure"] or 1)
+    amt = l["amount"] or 0
+    pr = l["principal_received"] or 0
+    if amt <= 0 or t < 1:
+        return 1
+    return max(1, min(t, round(pr / (amt / t))))
+
+
+def _loan_net_flows(l):
+    """One matured loan's daily NET cashflows (fee deducted): −amount at
+    disbursement, then (received − fee) spread over the EMIs — full tenure for
+    CLOSED loans, but only up to the estimated default month for NPAs (their
+    receipts are front-loaded under the per-EMI fee model, not spread over the
+    full term — spreading them over a term the loan never reached mis-times
+    the default loss and biases XIRR)."""
+    amt = l["amount"] or 0
+    t = int(l["tenure"] or 1)
+    net = (l["total_received"] or 0) - (l["platform_fee"] or 0)
+    k = _default_month(l) if l["status"] == "NPA" else t
+    k = max(1, min(t, k))
+    emi = net / k
+    cf = [(0, -amt)]
+    for i in range(k):
+        d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i))
+        cf.append((d, emi))
+    return cf
+
+
 def _money(loans):
     """Aggregate money fields over a loan list."""
     return {
@@ -156,20 +276,21 @@ def _irr(cashflows):
 
 def _xirr_cashflows(sel):
     """Build per-loan gross/net daily cashflows for a matured loan set
-    (amount out at disbursement; (received - fee) spread over the EMI months).
-    Loans that defaulted with zero recovery contribute a pure loss."""
+    (amount out at disbursement; gross receipts spread over the EMI months;
+    net = receipts − fee with NPA receipts front-loaded to the estimated
+    default month — see _loan_net_flows for why). Loans that defaulted with
+    zero recovery contribute a pure loss."""
     gross_cf, net_cf = [], []
     per_gross, per_net = {}, {}
     for l in sel:
         t = int(l["tenure"] or 1)
-        amt, tot, fee = l["amount"], l["total_received"] or 0, l["platform_fee"] or 0
-        g_emi, n_emi = tot / t, (tot - fee) / t
+        amt, tot = l["amount"], l["total_received"] or 0
+        g_emi = tot / t
         cf_g = [(0, -amt)]
-        cf_n = [(0, -amt)]
         for i in range(1, t + 1):
             d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
             cf_g.append((d, g_emi))
-            cf_n.append((d, n_emi))
+        cf_n = _loan_net_flows(l)
         gross_cf.extend(cf_g)
         net_cf.extend(cf_n)
         per_gross.setdefault(t, []).extend(cf_g)
@@ -265,8 +386,10 @@ def active_xirr(loans):
         ci = sum((l["total_repayment"] or 0) - (l["amount"] or 0) for l in r)
         ii = sum(l["interest_received"] or 0 for l in r)
         coll[t] = (100.0 * ii / ci) if ci else 70.0
-    # fee rate per tenure (% of disbursed, on closed loans)
-    fee_rate = _rate(closed, "platform_fee", "amount")
+    # fee rate per tenure (% of principal returned; era-aware for the
+    # tenures whose schedule changed mid-book)
+    def _fee_rate_for(l):
+        return (_fee_rate(l["tenure"], (l["disbursement_date"] or "")[:7]) or 0.0) / 100.0
 
     def _loan_flows(l, default_on):
         t = int(l["tenure"] or 1)
@@ -279,7 +402,7 @@ def active_xirr(loans):
         loss = outstanding * (def_rate[t] / 100.0) if default_on else 0.0
         expected_in = rec + (outstanding - loss) + fut_int * (coll[t] / 100.0)
         fee_paid = l["platform_fee"] or 0
-        fut_fee = max(0.0, amt * fee_rate[t] - fee_paid)
+        fut_fee = max(0.0, amt * _fee_rate_for(l) - fee_paid)
         net_in = max(0.0, expected_in - fee_paid - fut_fee)
         cf = [(0, -amt)]
         emi = net_in / t
@@ -433,11 +556,14 @@ def xirr_picks(loans, min_matured=10):
 
     Method: every matured loan (CLOSED + NPA) is assigned to a (tenure, score)
     cell. Its net cashflows — amount out at disbursement, (received − platform
-    fee) spread over the actual monthly EMIs — are pooled per cell and solved
-    for the annualized IRR (same solver as ``xirr_returns``). NPA loans enter as
-    losses (full principal out, only recovered rupees back, zero-recovery loans
-    as total losses), so each cell's XIRR is the honest default-inclusive
-    annualized net return — every fee and every default is inside the number.
+    fee) over the actual monthly EMIs, NPA receipts front-loaded to the
+    estimated default month (the fee model is % of principal returned per EMI,
+    so defaulted loans stop early rather than paying over the full term) — are
+    pooled per cell and solved for the annualized IRR (same solver as
+    ``xirr_returns``). NPA loans enter as losses (full principal out, only
+    recovered rupees back, zero-recovery loans as total losses), so each cell's
+    XIRR is the honest default-inclusive annualized net return — every fee and
+    every default is inside the number.
 
     Allocation rule (deterministic and stated on the dashboard):
       * only cells with >= min_matured completed loans are ranked;
@@ -476,31 +602,16 @@ def xirr_picks(loans, min_matured=10):
         avg_rate = (sum(l["interest_rate"] or 0 for l in sel if l["interest_rate"]) /
                     sum(1 for l in sel if l["interest_rate"])) if any(l["interest_rate"] for l in sel) else None
         # pooled net cashflows across the cell's matured loans
+        # (per-EMI fee model: NPA receipts front-loaded to the default month)
         net_cf = []
         for l in sel:
-            amt = l["amount"] or 0
-            tot = l["total_received"] or 0
-            fee = l["platform_fee"] or 0
-            t_ = int(l["tenure"] or 1)
-            emi = (tot - fee) / t_
-            net_cf.append((0, -amt))
-            for i in range(1, t_ + 1):
-                d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
-                net_cf.append((d, emi))
+            net_cf.extend(_loan_net_flows(l))
         xirr_all = round(100 * _irr(_norm(net_cf)), 1) if net_cf else None
         # success-only reference: same pool minus the NPA loans
         if closed:
             ok_cf = []
             for l in closed:
-                amt = l["amount"] or 0
-                tot = l["total_received"] or 0
-                fee = l["platform_fee"] or 0
-                t_ = int(l["tenure"] or 1)
-                emi = (tot - fee) / t_
-                ok_cf.append((0, -amt))
-                for i in range(1, t_ + 1):
-                    d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
-                    ok_cf.append((d, emi))
+                ok_cf.extend(_loan_net_flows(l))
             xirr = round(100 * _irr(_norm(ok_cf)), 1) if ok_cf else None
         else:
             xirr = None
@@ -550,6 +661,87 @@ def xirr_picks(loans, min_matured=10):
                 "gate 0.2×, avoid 0 — normalized to 100% of monthly lending",
         "cells": cells,
         "tier_pcts": tier_pcts,
+    }
+
+
+def month_allocation(loans, picks):
+    """The newest month's actual lending vs the dashboard's own recommendation.
+
+    Takes the latest disbursement month that has still-open money (ACTIVE /
+    PROCESSING loans) and buckets those fresh loans into the same tenure ×
+    score cells the picks panel ranks, so the page can show "where this
+    month's money actually went" next to "where the data says it should go".
+    Money that went into avoid/conditional cells is called out explicitly.
+    """
+    month = max(((l["disbursement_date"] or "")[:7] for l in loans
+                 if l["status"] in ("ACTIVE", "PROCESSING") and l["disbursement_date"]),
+                default=None)
+    if not month:
+        return None
+    fresh = [l for l in loans
+             if (l["disbursement_date"] or "")[:7] == month
+             and l["status"] in ("ACTIVE", "PROCESSING")]
+    if not fresh:
+        return None
+
+    cell_by_key = {c["key"]: c for c in picks.get("cells", [])}
+    agg = {}
+    for l in fresh:
+        t = int(l["tenure"] or 0)
+        band = None
+        for lo, hi, lab in SCORE_PICK_BANDS:
+            if l["score"] is not None and lo <= l["score"] < hi:
+                band = lab
+                break
+        key = f"{t}mo·{band}" if band else None
+        a = agg.setdefault((t, band), {"loans": 0, "amount": 0.0})
+        a["loans"] += 1
+        a["amount"] += l["amount"] or 0
+
+    total_amt = sum(a["amount"] for a in agg.values())
+    buckets = []
+    misaligned_amt = 0.0
+    misaligned_loans = 0
+    for (t, band), a in sorted(agg.items(), key=lambda kv: (-kv[1]["amount"])):
+        key = f"{t}mo·{band}" if band else None
+        cell = cell_by_key.get(key)
+        tier = cell["tier"] if cell else ("unproven" if band else "unbanded")
+        rec = cell["rec_pct"] if cell else None
+        actual = round(100 * a["amount"] / total_amt, 1) if total_amt else 0.0
+        if cell and cell["tier"] in ("avoid", "gate"):
+            misaligned_amt += a["amount"]
+            misaligned_loans += a["loans"]
+        buckets.append({
+            "tenure": t, "band": band, "key": key,
+            "loans": a["loans"], "amount": round(a["amount"], 2),
+            "actual_pct": actual, "rec_pct": rec, "tier": tier,
+            "xirr_all": cell["xirr_all"] if cell else None,
+        })
+
+    # tenure-level rollup (the verdict's first gate is the tenure)
+    ten = {}
+    for b in buckets:
+        d = ten.setdefault(b["tenure"], {"loans": 0, "amount": 0.0, "rec": 0.0})
+        d["loans"] += b["loans"]
+        d["amount"] += b["amount"]
+        d["rec"] += b["rec_pct"] or 0.0
+    by_tenure = [{
+        "tenure": t,
+        "loans": d["loans"], "amount": round(d["amount"], 2),
+        "actual_pct": round(100 * d["amount"] / total_amt, 1) if total_amt else 0.0,
+        "rec_pct": round(d["rec"], 1),
+    } for t, d in sorted(ten.items())]
+
+    core_amt = sum(b["amount"] for b in buckets if b["tier"] == "core")
+    return {
+        "month": month,
+        "loans": len(fresh),
+        "amount": round(total_amt, 2),
+        "by_bucket": buckets,
+        "by_tenure": by_tenure,
+        "core_pct": round(100 * core_amt / total_amt, 1) if total_amt else 0.0,
+        "misaligned_amount": round(misaligned_amt, 2),
+        "misaligned_loans": misaligned_loans,
     }
 
 
@@ -775,9 +967,10 @@ def _atlas_band(score):
 
 
 def _pool_xirr(pool, closed_only=False):
-    """Money-weighted net XIRR of a matured-loan pool (same even-EMI convention
-    as xirr_returns / xirr_picks: amount out at disbursement, (received − platform
-    fee) spread over the tenure's EMIs). closed_only drops NPA loans entirely."""
+    """Money-weighted net XIRR of a matured-loan pool (same convention as
+    xirr_returns / xirr_picks: amount out at disbursement, receipts − fee over
+    the EMIs, NPAs front-loaded to their estimated default month).
+    closed_only drops NPA loans entirely."""
     cfs = []
     for l in pool:
         if closed_only and l["status"] != "CLOSED":
@@ -786,12 +979,7 @@ def _pool_xirr(pool, closed_only=False):
         t = int(l["tenure"] or 1)
         if amt <= 0 or t < 1 or not l["repayment_start"]:
             continue
-        net_in = (l["total_received"] or 0) - (l["platform_fee"] or 0)
-        emi = net_in / t
-        cfs.append((0, -amt))
-        for i in range(1, t + 1):
-            d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
-            cfs.append((d, emi))
+        cfs.extend(_loan_net_flows(l))
     if not cfs:
         return None
     return round(100 * _irr(_norm(cfs)), 1)

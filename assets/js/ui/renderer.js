@@ -98,7 +98,8 @@ function buildLayout() {
       visibleCharts(sec).forEach((c) => {
         const card = document.createElement("div");
         card.className = "chart-card";
-        card.innerHTML = `<div class="chart-head"><h3>${c.title}</h3><div class="chart-sub">${c.sub}</div></div><div class="chart-body" id="ch-${c.id}"></div>`;
+        const sub = typeof c.sub === "function" ? c.sub() : c.sub;
+        card.innerHTML = `<div class="chart-head"><h3>${c.title}</h3><div class="chart-sub">${sub}</div></div><div class="chart-body" id="ch-${c.id}"></div>`;
         grid.appendChild(card);
       });
       cardsEl.appendChild(grid);

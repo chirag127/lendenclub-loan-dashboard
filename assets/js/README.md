@@ -7,8 +7,8 @@ so **load order matters** and is fixed in `index.html`.
 
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
-(infrastructure)              (142 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 47 of 142,
+(infrastructure)              (147 chart definitions)   (decide what       (DOM renderers) (init & start)
+                                                       renders: 51 of 147,
                                                        not a fixed cap)
 ```
 
@@ -20,7 +20,7 @@ core.js                       → charts/*.js            → curation.js      �
 | `core.js` | Formatting helpers (`inr`, `fmt`, `pct`…), palette/theme, shared state (`LOANS`, `SUMMARY`, `MONTHS`, filters), data helpers, tenure × score stats, net-projection maths, shared ECharts option pieces, `polish()` styling pass, and the chart registry (`SECTIONS` + `addChart`). |
 
 ### Chart definitions (`charts/`) — one topic per file
-All **142** charts are defined here. Which ones *render* is decided later by `curation.js`.
+All **147** charts are defined here. Which ones *render* is decided later by `curation.js`.
 | File | Charts | Rendered in the decision view |
 |---|---|---|
 | `portfolio.js` | g1–g4 | g1, g2, g3 |
@@ -31,7 +31,8 @@ All **142** charts are defined here. Which ones *render* is decided later by `cu
 | `tenure-score-risk.js` | n1–n12 | n1–n12 |
 | `cashflow.js` | i1–i8 | i1, i3, i5, i6, i7, i8 |
 | `net-returns.js` | nr1–nr11 | nr1–nr8, nr10, nr11 |
-| `fees.js` | fe1–fe3 | all — fee schedule by tenure (repaid vs paid-so-far), fee ₹ vs interest received, total ₹ impact of fees on net returns |
+| `fees.js` | fe1–fe5 | fe1, fe2, fe3, fe4 — the fee model, verified from the data (fee = schedule % × principal returned per EMI, with the Apr/Jun-26 price increases for 4/5-month loans): schedule by tenure, fee ₹ vs interest, total ₹ impact waterfall, the fee increase for new 4/5-month loans, and the proof scatter (fee vs principal returned — every loan on its tenure's line) |
+| `allocation.js` | al1–al3 | al1, al2, al3 — this month's money vs the verdict (by tenure, at the tenure × score cell level, and by verdict tier), from `month_allocation()` in the pipeline |
 | `xirr.js` | rt1–rt6 | rt1–rt6 |
 | `picks.js` | hp1–hp2 | hp1, hp2 |
 | `decision-extra.js` | dx1–dx4, dg1 | all — new decision views (net-XIRR matrix heatmap, NPA recovery, contracted-vs-collected interest, active money by vintage, gauge dials) |
@@ -58,7 +59,7 @@ can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` ta
 
 ### Curation — the single source of truth for what renders
 `curation.js` rebuilds `SECTIONS` into the 9-section decision flow (book →
-supply → returns → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 47 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated)**.
+supply → returns → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 51 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file

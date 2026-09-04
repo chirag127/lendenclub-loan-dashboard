@@ -28,13 +28,33 @@ addInsightCard({
   tone: "warn", icon: "🪜", title: "The ladder: contracted rate → gross → net of fees → net of defaults",
   need: (c) => c.X.portfolio_gross != null && c.X.portfolio_net_all != null,
   data: (c) => `Average contracted rate <b>${pct(c.st.avg_interest_rate)}</b> → gross XIRR <b>${pct(c.X.portfolio_gross)}/yr</b> → minus platform fees (<b>${inr(c.S.platform_fee)}</b>) → <b>${pct(c.X.portfolio_net)}/yr</b> on successful loans → minus all NPA defaults (<b>${inr(c.O.npa_loss)}</b>) → <b>${pct(c.X.portfolio_net_all)}/yr net</b>.`,
-  why: () => `Two costs are unavoidable in P2P lending and neither appears in the quoted rate: the platform fee is charged up front on every loan, and credit losses are paid later out of principal. Only after both are subtracted do you get the return you can actually spend.`,
+  why: () => `Two costs are unavoidable in P2P lending and neither appears in the quoted rate: the platform fee is collected with every EMI — <b>${pct(FS.schedule["4"])}% of the principal each EMI returns</b> (higher on longer tenures) — and credit losses are paid later out of principal. Only after both are subtracted do you get the return you can actually spend.`,
 });
 addInsightCard({
   tone: "info", icon: "💡", title: "Risk = time × borrower quality — the whole dashboard in one sentence",
   need: (c) => c.md(2) != null && c.md(12) != null,
   data: (c) => `Default rate on completed loans by tenure: 2-month <b>${pct(c.md(2))}</b> → 3-month <b>${pct(c.md(3))}</b> → 5-month <b>${pct(c.md(5))}</b> → 4-month <b>${pct(c.md(4))}</b> → 6-month <b>${pct(c.md(6))}</b> → 12-month <b>${pct(c.md(12))}</b>.`,
   why: () => `At 2 months almost nobody defaults; at 12 months even decent borrowers do. So use the score as a gate exactly where the default clock is long (6-month at ≥ 750, no 12-month at all) and ignore it where the clock is short (2-month). That single rule reproduces the entire Core/Avoid split in the picks panel.`,
+});
+
+/* ---------------- Fee model & fresh-money allocation (whole book) ---------------- */
+addInsightCard({
+  tone: "info", icon: "🧾", title: "How the platform fee actually works — and it just got more expensive",
+  need: (c) => c.FS.schedule && c.FS.observed && c.FS.observed.length > 0,
+  data: (c) => `The fee is charged as <b>${pct(c.FS.schedule["2"])}–${pct(c.FS.schedule["12"])} of the principal each EMI returns</b> — never on interest, never upfront. Verified to the decimal: ${c.FS.observed.slice(0, 3).map((o) => `${o.tenure}-month ${o.era.includes("<") ? "(old)" : ""} <b>${o.median_pct.toFixed(1)}%</b>`).join(" · ")} of principal returned, and the same on active/NPA loans. The catch: <b>4/5-month loans now pay 3.0% where they used to pay 2.3–2.5%</b> (from ${c.FS.changes[0].from_month}), so fresh longer-tenure money carries more fee than your realised XIRRs are built on.`,
+  why: () => `A default or foreclosure stops the fee with the principal — the platform only charges what actually came back. That is why the fee matters most on long tenures: you pay the full schedule rate on principal that mostly returns, then lose the principal anyway when the loan goes bad. Short tenures pay the least fee and default the least — the double win behind every short-money pick on this dashboard.`,
+});
+addInsightCard({
+  tone: "warn", icon: "📅", title: "This month's money vs where the data says to put it",
+  need: (c) => c.MA && c.MA.by_tenure && c.MA.by_tenure.length > 0,
+  data: (c) => `${c.MA.month}: <b>${fmt.format(c.MA.loans)} loans / ${inr(c.MA.amount)}</b> deployed, but only <b>${c.MA.core_pct.toFixed(1)}%</b> went into core cells (recommended ~84%) and <b>${inr(c.MA.misaligned_amount)}</b> went into avoid/conditional cells. By tenure: 4-month took <b>${c.MA.by_tenure.find((t) => t.tenure === 4).actual_pct.toFixed(1)}%</b> vs ${c.MA.by_tenure.find((t) => t.tenure === 4).rec_pct.toFixed(1)}% recommended, while 3-month — your best-earning tenure — got only ${c.MA.by_tenure.find((t) => t.tenure === 3).actual_pct.toFixed(1)}% vs ${c.MA.by_tenure.find((t) => t.tenure === 3).rec_pct.toFixed(1)}%.`,
+  why: () => `Supply, not judgement, explains most of it: 3-month × 750+ loans are simply scarce this month, so the money lands in the 4-month 700–724 core cell (fine) and 2/4-month 750+ support cells (acceptable) — plus ₹10.5k in a cell that loses money after defaults. When the top cells are not on the shelf, 2-month ≥725 and 5-month ≥725 are the data's next-best homes.`,
+});
+addInsightCard({
+  tone: "info", icon: "🧮", title: "The report's own P&L column ignores the fee",
+  need: (c) => c.FS.pnl_ignored_fees != null,
+  data: (c) => `On all ${fmt.format(c.mat.length)} matured loans the report's 'pnl' column records <b>receipts − amount</b> with the platform fee left out — <b>${inr(c.FS.pnl_ignored_fees)}</b> of fees never appear in LenDenClub's own profit line. Every net figure on this dashboard subtracts the fee explicitly.`,
+  why: () => `Don't reconcile your returns against the report's pnl column — it flatters the result by the full fee bill. The XIRR, ROI and net-kept numbers here are the fee-inclusive (honest) version.`,
 });
 
 /* ---------------- The book at a glance ---------------- */

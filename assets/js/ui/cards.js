@@ -52,6 +52,8 @@ function cardCtx() {
     AX: INS.active_xirr || {},
     IC: INS.interest_collection_rates || {},
     A: INS.xirr_atlas || null,
+    FS: INS.fee_schedule || {},
+    MA: INS.month_allocation || null,
     xA: (INS.xirr_returns || {}).net_all_by_tenure || {},
     ic: (t) => (((INS.interest_collection_rates || {})[t] || {}).collection_rate),
     cell: (t, b) => (picks.cells || []).find((c) => c.tenure === t && c.band === b),

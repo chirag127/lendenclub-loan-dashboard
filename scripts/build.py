@@ -40,6 +40,7 @@ def main():
     stats = summary_mod.portfolio_stats(loans)
 
     print(f"[3/5] computing insights ({len(loans)} loans)")
+    xirr_picks_payload = insights.xirr_picks(loans)
     insights_payload = {
         "tenure_matrix": insights.tenure_matrix(loans),
         "returns_by_tenure": insights.returns_by_tenure(loans),
@@ -49,7 +50,9 @@ def main():
         "vintage": insights.vintage(loans, summary.get("to_date")),
         "xirr_atlas": insights.xirr_atlas(loans),
         "xirr_returns": insights.xirr_returns(loans),
-        "xirr_picks": insights.xirr_picks(loans),
+        "xirr_picks": xirr_picks_payload,
+        "month_allocation": insights.month_allocation(loans, xirr_picks_payload),
+        "fee_schedule": insights.fee_schedule(loans),
         "active_xirr": insights.active_xirr(loans),
         "expected_emi_timeline": insights.expected_emi_timeline(loans),
     }

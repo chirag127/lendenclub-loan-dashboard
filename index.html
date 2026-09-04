@@ -6,7 +6,7 @@
 <title>LenDenClub · Loan Analytics Dashboard</title>
 <meta name="description" content="Manual lending decision dashboard for LenDenClub (Lending Club India) — 60+ charts, gauge dials, a tenure × score risk matrix, an NPA-by-year ledger (tenure-level vs annualized), KPIs and a loan register — everything needed to answer which loans to invest in.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💚</text></svg>">
-<link rel="stylesheet" href="assets/styles.css?v=18">
+<link rel="stylesheet" href="assets/styles.css?v=19">
 <!-- ECharts vendored locally (Apache-2.0) so the site has no runtime CDN dependency -->
 <script src="assets/echarts.min.js"></script>
 <script>window.addEventListener("error", function (e) { var el = e.target; if (el && el.tagName === "SCRIPT" && el.src.indexOf("echarts") > -1 && !window.echarts) { var s = document.createElement("script"); s.src = "https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"; document.head.appendChild(s); } }, true);</script>
@@ -19,7 +19,7 @@
     <div class="brand">
       <span class="brand-logo">💚</span>
       <div>
-        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v18</span></div>
+        <div class="brand-name">LenDenClub <span>Manual Lending</span> <span class="ver">v19</span></div>
         <div class="brand-sub">Loan Analytics Dashboard</div>
       </div>
     </div>
@@ -92,43 +92,44 @@
   Modular classic scripts (no ES modules — must keep working from file:// with no server/CORS).
   Load order: core → charts → curation → ui → boot. See assets/js/README.md.
 -->
-<script src="data/summary.js?v=18"></script>
-<script src="data/loans.js?v=18"></script>
-<script src="data/insights.js?v=18"></script>
-<script src="data/audit.js?v=18"></script>
-<script src="assets/js/core.js?v=18"></script>
-<script src="assets/js/charts/portfolio.js?v=18"></script>
-<script src="assets/js/charts/disbursement.js?v=18"></script>
-<script src="assets/js/charts/characteristics.js?v=18"></script>
-<script src="assets/js/charts/status-health.js?v=18"></script>
-<script src="assets/js/charts/risk.js?v=18"></script>
-<script src="assets/js/charts/tenure-score-risk.js?v=18"></script>
-<script src="assets/js/charts/cashflow.js?v=18"></script>
-<script src="assets/js/charts/net-returns.js?v=18"></script>
-<script src="assets/js/charts/fees.js?v=18"></script>
-<script src="assets/js/charts/xirr.js?v=18"></script>
-<script src="assets/js/charts/picks.js?v=18"></script>
-<script src="assets/js/charts/decision-extra.js?v=18"></script>
-<script src="assets/js/charts/npa-year.js?v=18"></script>
-<script src="assets/js/charts/vintage.js?v=18"></script>
-    <script src="assets/js/charts/atlas.js?v=18"></script>
-<script src="assets/js/charts/optional.js?v=18"></script>
-<script src="assets/js/curation.js?v=18"></script>
-<script src="assets/js/ui/renderer.js?v=18"></script>
-<script src="assets/js/ui/loan-picks.js?v=18"></script>
-<script src="assets/js/ui/reasons.js?v=18"></script>
-<script src="assets/js/ui/guardrails.js?v=18"></script>
-<script src="assets/js/ui/audit.js?v=18"></script>
-<script src="assets/js/ui/risk-matrix.js?v=18"></script>
-<script src="assets/js/ui/npa-year-table.js?v=18"></script>
-    <script src="assets/js/ui/vintage-table.js?v=18"></script>
-    <script src="assets/js/ui/tabs.js?v=18"></script>
-    <script src="assets/js/ui/cards.js?v=18"></script>
-    <script src="assets/js/ui/cards-insights.js?v=18"></script>
-<script src="assets/js/ui/returns-statement.js?v=18"></script>
-<script src="assets/js/ui/kpis.js?v=18"></script>
-<script src="assets/js/ui/filters.js?v=18"></script>
-<script src="assets/js/ui/table.js?v=18"></script>
-<script src="assets/js/boot.js?v=18"></script>
+<script src="data/summary.js?v=19"></script>
+<script src="data/loans.js?v=19"></script>
+<script src="data/insights.js?v=19"></script>
+<script src="data/audit.js?v=19"></script>
+<script src="assets/js/core.js?v=19"></script>
+<script src="assets/js/charts/portfolio.js?v=19"></script>
+<script src="assets/js/charts/disbursement.js?v=19"></script>
+<script src="assets/js/charts/characteristics.js?v=19"></script>
+<script src="assets/js/charts/status-health.js?v=19"></script>
+<script src="assets/js/charts/risk.js?v=19"></script>
+<script src="assets/js/charts/tenure-score-risk.js?v=19"></script>
+<script src="assets/js/charts/cashflow.js?v=19"></script>
+<script src="assets/js/charts/net-returns.js?v=19"></script>
+<script src="assets/js/charts/fees.js?v=19"></script>
+<script src="assets/js/charts/allocation.js?v=19"></script>
+<script src="assets/js/charts/xirr.js?v=19"></script>
+<script src="assets/js/charts/picks.js?v=19"></script>
+<script src="assets/js/charts/decision-extra.js?v=19"></script>
+<script src="assets/js/charts/npa-year.js?v=19"></script>
+<script src="assets/js/charts/vintage.js?v=19"></script>
+    <script src="assets/js/charts/atlas.js?v=19"></script>
+<script src="assets/js/charts/optional.js?v=19"></script>
+<script src="assets/js/curation.js?v=19"></script>
+<script src="assets/js/ui/renderer.js?v=19"></script>
+<script src="assets/js/ui/loan-picks.js?v=19"></script>
+<script src="assets/js/ui/reasons.js?v=19"></script>
+<script src="assets/js/ui/guardrails.js?v=19"></script>
+<script src="assets/js/ui/audit.js?v=19"></script>
+<script src="assets/js/ui/risk-matrix.js?v=19"></script>
+<script src="assets/js/ui/npa-year-table.js?v=19"></script>
+    <script src="assets/js/ui/vintage-table.js?v=19"></script>
+    <script src="assets/js/ui/tabs.js?v=19"></script>
+    <script src="assets/js/ui/cards.js?v=19"></script>
+    <script src="assets/js/ui/cards-insights.js?v=19"></script>
+<script src="assets/js/ui/returns-statement.js?v=19"></script>
+<script src="assets/js/ui/kpis.js?v=19"></script>
+<script src="assets/js/ui/filters.js?v=19"></script>
+<script src="assets/js/ui/table.js?v=19"></script>
+<script src="assets/js/boot.js?v=19"></script>
 </body>
 </html>
