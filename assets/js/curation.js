@@ -1,7 +1,7 @@
 /* ============================================================
  * curation.js — DECISION VIEW
- * Rebuilds SECTIONS from the registry into the 7-section decision flow and the curated render set
- * (currently 67 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * Rebuilds SECTIONS from the registry into the 8-section decision flow and the curated render set
+ * (currently 72 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
  * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
  * source of truth for what shows.
  * ------------------------------------------------------------
@@ -10,8 +10,8 @@
  * ============================================================ */
 
 /* ============ DECISION VIEW — the curated set that answers "which loans should I fund?" ============
-   All 95 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
-   decision flow: glance -> supply -> returns -> risk -> NPA-by-year -> cashflow/watch-outs -> verdict. The count is not
+   All 100 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
+   decision flow: glance -> supply -> returns -> risk -> NPA-by-year -> vintage -> cashflow/watch-outs -> verdict. The count is not
    fixed at 50 — more charts and other forms (gauges, tables, matrices) are added by listing them here.
    Everything shown nets out fees + NPAs or feeds the risk/returns math behind the picks. */
 (function curateDecisionView() {
@@ -48,6 +48,12 @@
       npaYearTable: true,
     },
     {
+      name: "Defaults by origination cohort — curves, rates & the ₹ bill",
+      sub: "The same defaults by origination month: cumulative NPA rate at each loan age (one line per cohort), when defaults strike, then each cohort's full set of percentages — NPA rate and ₹ loss over the loan's life vs annualized per year, and net kept per ₹1,000 after fees & every default — with the complete ledger table underneath. Whole book: cohort curves need the full history, so these do not react to the month filter.",
+      ids: ["vc1", "vc2", "vc3", "vc4", "vc5"],
+      vintageTable: true,
+    },
+    {
       name: "Cashflow & watch-outs",
       sub: "What actually comes in each month, what the active book is projected to return, and the overdue pipeline that will decide your next default bill.",
       ids: ["i1", "i3", "i5", "i6", "i7", "rt2", "rt4", "rt6", "n10", "n11", "r6", "r8", "dx2", "dx4", "n12", "i8", "r7"],
@@ -69,6 +75,7 @@
     if (g.why) sec.why = true;
     if (g.riskMatrix) sec.riskMatrix = true;
     if (g.npaYearTable) sec.npaYearTable = true;
+    if (g.vintageTable) sec.vintageTable = true;
     SECTIONS.push(sec);
   });
 })();

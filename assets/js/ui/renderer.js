@@ -63,6 +63,12 @@ function buildLayout() {
       });
       cardsEl.appendChild(grid);
     }
+    if (sec.vintageTable) {
+      const vt = document.createElement("div");
+      vt.className = "vintage-table";
+      vt.id = "vintage-table";
+      cardsEl.appendChild(vt);
+    }
   });
 }
 function renderAll() {
@@ -83,6 +89,7 @@ function renderAll() {
   renderLoanPicks();
   renderRiskMatrix();
   renderNpaYearTable();
+  renderVintageTable();
 }
 
 /* make every tooltip formatter immune to axis-vs-item params shape */

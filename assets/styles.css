@@ -436,3 +436,15 @@ table.nyt { min-width: 1180px; }
   font-weight: 800;
 }
 .nyt .dm-cell { white-space: nowrap; }
+
+/* ---------- vintage ledger (plain HTML, no chart lib) ---------- */
+.vintage-table {
+  margin: 0 0 16px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(51, 65, 85, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+table.nyt.vt { min-width: 1420px; }
+.vt td.dm-cell, .vt th { white-space: nowrap; }
+.vt .nyt-lab { text-align: left; }

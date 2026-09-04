@@ -553,6 +553,163 @@ def xirr_picks(loans, min_matured=10):
     }
 
 
+def vintage(loans, report_end=None):
+    """Vintage curves: how each origination cohort's defaults arrive month by month.
+
+    A cohort = all funded loans (CLOSED/ACTIVE/NPA with a disbursement date)
+    originated in one calendar month. For every cohort, ``curve`` gives the
+    cumulative default (NPA) rate at each loan age in months — so you can read
+    a vintage's default bill as it builds and whether the curve has flattened
+    (the cohort has paid its bill) or is still climbing (recent cohorts are
+    unproven). ``arrival`` pools all NPAs into a histogram of the month-of-life
+    each default struck, answering "how fast do defaults actually hit?".
+
+    Every cohort also carries a percentage ledger (same fields the NPA-by-year
+    tables use, plus the economics): ``rate_life`` / ``rate_ann`` = NPA count ÷
+    matured loans, over the loan's term and annualized by turnover (x 12 / the
+    cohort's average tenure); ``loss_life`` / ``loss_ann`` = the same for NPA
+    rupees ÷ rupees disbursed on those matured loans. Then the realized money
+    side over the whole cohort (active included, to the report date):
+    ``interest`` received, ``fees`` deducted, ``npa_amt`` unrecovered principal
+    booked on NPAs, and ``net`` = interest - fees - npa_amt, with ``net_pct``
+    and ``net_ann`` (per year by the cohort's average tenure). ``open`` flags a
+    cohort where more than 10% of loans are still ACTIVE - its net is only
+    realized-to-date and can still degrade.
+
+    Default timing note: the report records only an NPA *declaration* date
+    (all 148 declarations landed in one May–Sep 2026 batch, lagging the true
+    default by months), so that date cannot drive the curve. Instead each NPA's
+    default month is estimated from how much principal it actually repaid —
+    EMIs paid ≈ principal_received ÷ (amount ÷ tenure), the same even-EMI
+    convention the XIRR charts disclose — defaulted = the month it missed its
+    next EMI. CLOSED loans never default; ACTIVE loans are survivors only up to
+    their observed age at the report date (they can still default later).
+    """
+    import datetime
+
+    if report_end is None:
+        report_end = "2026-09-02"
+    end = datetime.date.fromisoformat(str(report_end)[:10])
+
+    def _months_elapsed(d0, d1):
+        return max(0, (d1.year - d0.year) * 12 + (d1.month - d0.month))
+
+    funded = [l for l in loans if l["status"] in ("CLOSED", "ACTIVE", "NPA")
+              and l.get("disbursement_date")]
+    cohorts = {}
+    hist = {}
+    for l in funded:
+        d0 = datetime.date.fromisoformat(l["disbursement_date"])
+        m = l["disbursement_date"][:7]
+        row = cohorts.setdefault(m, {"closed": 0, "npa": 0, "active": 0,
+                                    "def_ages": [], "loans": []})
+        row["loans"].append(l)
+        st = l["status"]
+        if st == "CLOSED":
+            row["closed"] += 1
+        elif st == "NPA":
+            row["npa"] += 1
+            a = l["amount"] or 0
+            t = int(l["tenure"] or 0) or 6
+            paid = (l["principal_received"] or 0) / (a / t) if a else 0
+            d = max(1, min(12, int(round(paid)) + 1))
+            row["def_ages"].append(d)
+            hist[d] = hist.get(d, 0) + 1
+        else:
+            row["active"] += 1
+            row["act_obs"] = row.get("act_obs", []) + [_months_elapsed(d0, end)]
+
+    out_cohorts = []
+    for m in sorted(cohorts):
+        c = cohorts[m]
+        n = c["closed"] + c["npa"] + c["active"]
+        matured = c["closed"] + c["npa"]
+        if matured < 10:
+            continue  # too little resolved evidence to draw a meaningful curve
+        # a cohort can only be observed up to the report date: cap the curve at
+        # the months its oldest loan (originated on the 1st) has actually lived,
+        # so an unproven cohort never renders flat tails at ages no loan reached
+        cohort_start = datetime.date(int(m[:4]), int(m[5:7]), 1)
+        max_obs = _months_elapsed(cohort_start, end) + 1
+        curve = []
+        for age in range(1, min(12, max_obs) + 1):
+            denom = matured + sum(1 for o in c.get("act_obs", []) if o >= age)
+            if denom < 15:
+                continue
+            num = sum(1 for d in c["def_ages"] if d <= age)
+            curve.append({
+                "age": age, "npa": num, "denom": denom,
+                "rate": round(100.0 * num / denom, 2),
+            })
+        if not curve:
+            continue
+        # ---- percentage & money ledger for this cohort (see module docstring) ----
+        def _ann(v, tmo):
+            return round(v * 12.0 / tmo, 2) if v is not None and tmo else None
+
+        mat_loans = [l for l in c["loans"] if l["status"] != "ACTIVE"]
+        npa_loans = [l for l in c["loans"] if l["status"] == "NPA"]
+        avg_ten_m = (round(sum((l["tenure"] or 0) for l in mat_loans) / len(mat_loans), 1)
+                     if mat_loans else None)
+        avg_ten = round(sum((l["tenure"] or 0) for l in c["loans"]) / n, 1) if n else None
+        disb_m = round(sum(l["amount"] or 0 for l in mat_loans), 2)
+        npa_amt_m = round(sum(l["npa_amount"] or 0 for l in npa_loans), 2)
+        rate_life = round(100.0 * c["npa"] / matured, 2) if matured else None
+        loss_life = round(100.0 * npa_amt_m / disb_m, 2) if disb_m else None
+        disb = round(sum(l["amount"] or 0 for l in c["loans"]), 2)
+        interest = round(sum(l["interest_received"] or 0 for l in c["loans"]), 2)
+        fees = round(sum(l["platform_fee"] or 0 for l in c["loans"]), 2)
+        npa_amt = round(sum(l["npa_amount"] or 0 for l in npa_loans), 2)
+        net = round(interest - fees - npa_amt, 2)
+        net_pct = round(100.0 * net / disb, 2) if disb else None
+        out_cohorts.append({
+            "month": m, "loans": n, "matured": matured,
+            "closed": c["closed"], "npa": c["npa"], "active": c["active"],
+            "open": n and c["active"] / n > 0.10,
+            "avg_tenure_m": avg_ten_m, "avg_tenure": avg_ten,
+            "rate_life": rate_life, "rate_ann": _ann(rate_life, avg_ten_m),
+            "loss_life": loss_life, "loss_ann": _ann(loss_life, avg_ten_m),
+            "disb_m": disb_m, "npa_amt_m": npa_amt_m,
+            "disb": disb, "interest": interest, "fees": fees,
+            "npa_amt": npa_amt, "net": net,
+            "net_pct": net_pct, "net_ann": _ann(net_pct, avg_ten),
+            "curve": curve,
+        })
+
+    # pooled arrival histogram across every NPA (month-of-life 1..12)
+    arrival = []
+    for age in range(1, 13):
+        cnt = hist.get(age, 0)
+        if cnt:
+            arrival.append({"age": age, "npa": cnt})
+    total_npa = sum(h for h in hist.values())
+    cum = 0
+    for r in arrival:
+        cum += r["npa"]
+        r["pct_of_all"] = round(100.0 * r["npa"] / total_npa, 1) if total_npa else 0
+        r["cum_pct"] = round(100.0 * cum / total_npa, 1) if total_npa else 0
+
+    return {
+        "report_end": str(end),
+        "cohorts": out_cohorts,
+        "arrival": arrival,
+        "note": "cohort = funded loans (CLOSED/ACTIVE/NPA) originated that month; "
+                "each NPA's default month-of-life is estimated from principal repaid "
+                "(EMIs paid ≈ principal ÷ (amount ÷ tenure), the same even-EMI "
+                "convention the XIRR charts disclose) because the report's NPA "
+                "declaration dates are batched and lag the true default; curve rate = "
+                "NPA loans with estimated default age ≤ that month ÷ (matured loans + "
+                "still-active loans that have already survived that many months); a "
+                "flat tail means the cohort has finished paying its default bill, a "
+                "still-rising end means recent cohorts are unproven; rate/loss per-year "
+                "figures annualize the matured rates by the cohort's average tenure "
+                "(x 12/avg tenure); net kept = interest received to date - fees - NPA "
+                "principal booked (npa_amount = unrecovered principal), realized across "
+                "the whole cohort including still-active loans, and open cohorts "
+                "(more than 10% active) can still degrade",
+    }
+
+
 def expected_emi_timeline(loans):
     """Month-by-month future EMI receipts from the ACTIVE book (contractual).
     Each active loan still owes (total_repayment - total_received); the remaining

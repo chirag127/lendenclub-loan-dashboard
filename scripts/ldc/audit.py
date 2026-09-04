@@ -228,6 +228,58 @@ def run_audit(loans, summary, stats):
         f"book NPA ₹{sums['npa']:,.2f}",
         "PASS" if abs(yr_amt - sums["npa"]) <= TOL else "FAIL", yr_amt, sums["npa"]))
 
+    # ---- Z-series: vintage-curve integrity ----
+    from .insights import vintage
+    vg = vintage(loans, S.get("to_date"))
+    funded = [l for l in loans if l["status"] in ("CLOSED", "ACTIVE", "NPA") and l.get("disbursement_date")]
+    vc_n = sum(c["loans"] for c in vg["cohorts"])
+    vc_npa = sum(c["npa"] for c in vg["cohorts"])
+    arr_sum = sum(r["npa"] for r in vg["arrival"])
+    checks.append(_check(
+        "Z1", "Vintage cohorts cover the funded book",
+        f"{len(vg['cohorts'])} cohorts sum to {vc_n} of {len(funded)} funded loans ({sum(1 for l in funded if l['status']=='NPA')} NPA across cohorts vs {vc_npa} in curves)",
+        "PASS" if vc_n <= len(funded) and vc_npa == stats["npa_loans"] else "FAIL",
+        vc_npa, stats["npa_loans"]))
+    checks.append(_check(
+        "Z2", "Arrival histogram accounts for every NPA",
+        f"default-age histogram sums to {arr_sum} NPA loans of {stats['npa_loans']}",
+        "PASS" if arr_sum == stats["npa_loans"] else "FAIL", arr_sum, stats["npa_loans"]))
+    bad_curve = []
+    for c in vg["cohorts"]:
+        prev = 0.0
+        for p in c["curve"]:
+            if p["npa"] < prev or p["denom"] < 15:
+                bad_curve.append(c["month"])
+                break
+            prev = p["npa"]
+    checks.append(_check(
+        "Z3", "Vintage curves are monotone (defaults only accumulate)",
+        f"{len(bad_curve)} cohorts with a non-monotone curve" if bad_curve else "all curves non-decreasing with adequate denominators",
+        "PASS" if not bad_curve else "FAIL", len(bad_curve), 0))
+
+    # ---- Z4/Z5: per-cohort percentage ledger (rates + economics) ----
+    bad_row = []
+    for c in vg["cohorts"]:
+        ok = (c["npa"] + c["closed"] == c["matured"]
+              and c["matured"] + c["active"] == c["loans"]
+              and abs((c["rate_life"] or 0) - 100.0 * c["npa"] / c["matured"]) <= 0.011
+              and abs((c["net"] or 0) - ((c["interest"] or 0) - (c["fees"] or 0) - (c["npa_amt"] or 0))) <= 0.011)
+        if not ok:
+            bad_row.append(c["month"])
+    checks.append(_check(
+        "Z4", "Cohort ledger rows are internally consistent",
+        f"{len(bad_row)} cohorts with inconsistent counts/net arithmetic" if bad_row else "every cohort's counts reconcile (closed+npa=matured, +active=loans) and net = interest − fees − NPA ₹",
+        "PASS" if not bad_row else "FAIL", len(bad_row), 0))
+    mat_in = sum(c["matured"] for c in vg["cohorts"])
+    mat_all = sum(1 for l in funded if l["status"] in ("CLOSED", "NPA"))
+    disb_in = sum(c["disb_m"] for c in vg["cohorts"])
+    disb_all = round(sum(l["amount"] or 0 for l in funded if l["status"] in ("CLOSED", "NPA")), 2)
+    checks.append(_check(
+        "Z5", "Cohort ledger covers the matured book it reports on",
+        f"rows cover {mat_in} of {mat_all} matured loans (₹{disb_in:,.2f} of ₹{disb_all:,.2f}); "
+        f"{mat_all - mat_in} matured loans sit in cohorts with <10 matured and are excluded by design",
+        "PASS" if mat_in <= mat_all and disb_in <= disb_all + 1 else "FAIL", mat_in, mat_all))
+
     # ---- verdict ----
     fails = [c for c in checks if c["status"] == "FAIL"]
     infos = [c for c in checks if c["status"] == "INFO"]
