@@ -8,7 +8,7 @@ so **load order matters** and is fixed in `index.html`.
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
 (infrastructure)              (91 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 63 of 91,
+                                                       renders: 64 of 91,
                                                        not a fixed cap)
 ```
 
@@ -34,14 +34,14 @@ All **91** charts are defined here. Which ones *render* is decided later by `cur
 | `xirr.js` | rt1–rt6 | rt1–rt6 |
 | `picks.js` | hp1–hp2 | hp1, hp2 |
 | `decision-extra.js` | dx1–dx4, dg1 | all — new decision views (net-XIRR matrix heatmap, NPA recovery, contracted-vs-collected interest, active money by vintage, gauge dials) |
-| `npa-year.js` | ny1–ny3 | all — NPA by origination year × tenure: rate over the loan's life vs annualized per year (count side + rupee side) |
+| `npa-year.js` | ny1–ny4 | all — NPA by origination year × tenure: rate over the loan's life vs annualized per year (count side + rupee side) + a year × tenure heatmap of the annualized rate |
 | `optional.js` | x1–x5 | — (kept for power users) |
 
 **The count is not fixed.** The earlier “exactly 50” rule was a minimum intent, not a ceiling:
 add a new `addChart(...)` and list its id in a `curation.js` group and it renders; the same file
 can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` table below).### Curation — the single source of truth for what renders
 `curation.js` rebuilds `SECTIONS` into the 7-section decision flow (book →
-supply → returns → risk → NPA-by-year → watch-outs → verdict) and keeps the **curated render set (currently 63)**.
+supply → returns → risk → NPA-by-year → watch-outs → verdict) and keeps the **curated render set (currently 64)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file

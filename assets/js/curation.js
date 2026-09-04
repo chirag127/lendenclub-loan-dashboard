@@ -1,7 +1,7 @@
 /* ============================================================
  * curation.js — DECISION VIEW
  * Rebuilds SECTIONS from the registry into the 7-section decision flow and the curated render set
- * (currently 63 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * (currently 64 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
  * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
  * source of truth for what shows.
  * ------------------------------------------------------------
@@ -44,7 +44,7 @@
     {
       name: "NPA by origination year — tenure-level vs annualized",
       sub: "The same default and loss rates shown two ways — over the loan's whole life and annualized per year (× 12/tenure, so 2-month and 12-month money compare fairly) — split by the origination year (Dec-2025 vintage vs 2026) with the full ledger underneath. Whole book: slicing the month filter would break the by-year attribution, so these charts and the table do not react to it.",
-      ids: ["ny1", "ny2", "ny3"],
+      ids: ["ny1", "ny2", "ny3", "ny4"],
       npaYearTable: true,
     },
     {

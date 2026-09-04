@@ -1,5 +1,5 @@
 /* ============================================================
- * charts/npa-year.js — ny1..ny3 (rendered: ny1, ny2, ny3)
+ * charts/npa-year.js — ny1..ny4 (rendered: ny1, ny2, ny3, ny4)
  * ------------------------------------------------------------
  * NPA by origination year × tenure, each figure shown two ways:
  *   rate_life  — NPA over the loan's whole term (matured basis)
@@ -95,5 +95,54 @@ addChart("NPA by year — tenure-level vs annualized", "The rupee cost of defaul
       { name: "NPA loss over the loan's life", type: "bar", barWidth: "28%", data: rows.map((r) => r.loss_life), itemStyle: { color: BLUE, borderRadius: [5, 5, 0, 0] } },
       { name: "Annualized loss per year", type: "bar", barWidth: "28%", data: rows.map((r) => r.loss_ann), itemStyle: { color: RED, borderRadius: [5, 5, 0, 0] } },
     ],
+  };
+});
+
+addChart("NPA by year — tenure-level vs annualized", "Same grid as the ledger below: origination year × tenure, one heatmap cell per bucket. Whole book.", "ny4", "NPA heatmap: origination year × tenure — annualized per-year rate", "Colour = the annualized NPA rate per year of lending (×12/tenure) — so cells compare fairly even though tenures differ in length. Read rows top to bottom: the Dec-2025 vintage vs Jan–Sep 2026 vs the whole book; read any cell for the over-the-loan's-life rate too. Red is expensive money: 2026 6-month stands out at 22.6%/yr, and even 2026 3-month (20.4%/yr) costs more per year than the 2025 vintage's worst tenure. † = fewer than 10 matured loans (rate unreliable).", 340, () => {
+  const ny = nyData();
+  if (!ny) return null;
+  const ys = [...(ny.years || []), "ALL"];      // rows: 2025, 2026, All years
+  const byCell = {};
+  ny.rows.forEach((r) => { if (r.tenure != null) byCell[r.year + "|" + r.tenure] = r; });
+  const data = [];
+  TENURES.forEach((t, i) => ys.forEach((y, j) => {
+    const r = byCell[y + "|" + t];
+    if (r) data.push([i, j, r.rate_ann, r.rate_life, r.matured, r.npa, r.disb, r.npa_amt, r.loss_life, r.loss_ann, !!r.small]);
+  }));
+  const maxAnn = Math.max(...data.map((v) => v[2]).filter((v) => v != null));
+  return {
+    ...baseOption(),
+    tooltip: {
+      ...baseOption().tooltip,
+      position: "top",
+      formatter: (pp) => {
+        const v = pp.value;
+        if (!v) return "";
+        const year = NY_YEAR_LABEL(ys[v[1]]), ten = TENURES[v[0]] + " mo";
+        const sm = v[10] ? "<br/><span style='color:#fbbf24'>† fewer than 10 matured loans — rate unreliable</span>" : "";
+        return `<b>${ten} · ${year}</b><br/>` +
+          `${fmt.format(v[4])} matured loans · ${fmt.format(v[5])} NPA · ₹ lent ${inr(v[6])} · NPA ₹ ${inr(v[7])}${sm}<br/>` +
+          `NPA over the loan's life: <b>${v[3].toFixed(1)}%</b><br/>` +
+          `Annualized NPA per year (×12/tenure): <b>${v[2].toFixed(1)}%</b><br/>` +
+          `<span style='color:#8fa3c0'>₹ loss: ${v[8].toFixed(1)}% of lent over life → ${v[9].toFixed(1)}%/yr</span>`;
+      },
+    },
+    grid: { left: 72, right: 16, top: 12, bottom: 84 },
+    xAxis: { type: "category", data: TENURES.map((t) => t + " mo"), splitArea: { show: true }, axisLabel: { color: "#8fa3c0" }, axisLine: AXIS.axisLine },
+    yAxis: { type: "category", data: ys.map((y) => NY_YEAR_LABEL(y)), splitArea: { show: true }, axisLabel: { color: "#8fa3c0", fontSize: 10 }, axisLine: AXIS.axisLine },
+    visualMap: {
+      type: "continuous", orient: "horizontal", left: "center", bottom: 4, min: 0, max: maxAnn,
+      text: ["%NPA/yr", ""], textStyle: { color: "#8fa3c0", fontSize: 10 },
+      inRange: { color: ["#15803d", "#84cc16", "#eab308", "#f97316", "#dc2626"] },
+      itemHeight: 60, itemWidth: 8,
+    },
+    series: [{
+      type: "heatmap", data,
+      label: {
+        show: true, color: "#ffffff", fontSize: 10, fontWeight: 700,
+        textBorderColor: "rgba(11,18,32,0.55)", textBorderWidth: 2,
+        formatter: (pp) => (pp.value[2] == null ? "–" : pp.value[2].toFixed(1) + "%") + (pp.value[10] ? " †" : ""),
+      },
+    }],
   };
 });
