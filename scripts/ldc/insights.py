@@ -969,10 +969,48 @@ def return_drivers(loans):
             s["label"] = rt.title()
             by_repay.append(s)
 
+    # ticket size WITHIN each tenure × score cell: is the ₹2,500 dip a mix
+    # effect or a real ticket-level risk? Holds the cell constant and cuts it
+    # by ticket bucket, so a bad ticket bucket can't be blamed on the cell mix.
+    def _pick_band(s):
+        for lo, hi, lab in SCORE_PICK_BANDS:
+            if s is not None and lo <= s < hi:
+                return lab
+        return None
+
+    ticket_buckets = ((0, 251, "₹250"), (251, 501, "₹500"), (501, 1001, "₹1,000"),
+                      (1001, 2501, "₹2,500"), (2501, 100000, "₹5,000+"))
+    by_ticket_in_cell = []
+    cell_pool = {}
+    for l in matured:
+        b = _pick_band(l.get("score"))
+        key = (int(l["tenure"] or 0), b)
+        if b:
+            cell_pool.setdefault(key, []).append(l)
+    for (t, b), sel in sorted(cell_pool.items()):
+        if len(sel) < 15:
+            continue  # cell too thin to cut by ticket
+        buckets = []
+        for lo, hi, lab in ticket_buckets:
+            sub = [l for l in sel if lo <= (l["amount"] or 0) < hi]
+            if len(sub) < 5:
+                continue
+            s = _stats(sub)
+            if s:
+                s["label"] = lab
+                buckets.append(s)
+        if len(buckets) >= 2:
+            by_ticket_in_cell.append({
+                "tenure": t, "band": b,
+                "loans": len(sel),
+                "buckets": buckets,
+            })
+
     return {
         "by_rate": by_rate,
         "by_ticket": by_ticket,
         "by_repay": by_repay,
+        "by_ticket_in_cell": by_ticket_in_cell,
         "note": "matured loans only (CLOSED + NPA); net XIRR incl. every default and fee, "
                 "same cashflow model as xirr_picks (per-EMI fee on principal returned, "
                 "NPA receipts front-loaded to the estimated default month); net_1000 = "

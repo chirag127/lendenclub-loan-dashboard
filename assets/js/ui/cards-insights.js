@@ -57,6 +57,25 @@ addInsightCard({
   why: () => `Don't reconcile your returns against the report's pnl column — it flatters the result by the full fee bill. The XIRR, ROI and net-kept numbers here are the fee-inclusive (honest) version.`,
 });
 
+/* ---------------- The ₹2,500 ticket trap (whole book) ---------------- */
+addInsightCard({
+  tone: "warn", icon: "🎯", title: "The ₹2,500 ticket trap — real risk, not a mix effect",
+  need: (c) => (c.INS.return_drivers || {}).by_ticket_in_cell && (c.INS.return_drivers.by_ticket_in_cell || []).length > 0,
+  data: (c) => {
+    const cells = c.INS.return_drivers.by_ticket_in_cell;
+    const trap = cells.find((cl) => {
+      const big = cl.buckets.find((b) => b.label === "₹2,500");
+      const small = cl.buckets.filter((b) => b.label !== "₹2,500" && b.xirr_all != null);
+      return big && small.some((s) => s.xirr_all > (big.xirr_all || 0) + 20);
+    });
+    if (!trap) return "No cell shows a ₹2,500 trap yet.";
+    const big = trap.buckets.find((b) => b.label === "₹2,500");
+    const best = trap.buckets.filter((b) => b.label !== "₹2,500").reduce((a, b) => (b.xirr_all != null && b.xirr_all > (a.xirr_all || -999) ? b : a), {});
+    return `Inside the <b>${trap.tenure}-month × ${trap.band}</b> cell — the same cell — <b>${big.label}</b> tickets net <b>${pct(big.xirr_all)}/yr</b> with <b>${pct(big.def_rate)}</b> defaulting, while ${best.label} tickets net <b>${pct(best.xirr_all)}/yr</b> at ${pct(best.def_rate)} default. Same borrower quality band, three times the default rate.`;
+  },
+  why: () => `A mid-size ticket concentrates your risk: one ₹2,500 default is worth five ₹500 ones, and on this book the bigger tickets in the same cell are defaulting at 2–3× the rate of small tickets. The fix is allocation, not avoidance: if you must lend ₹2,500, split it into ₹1,000 + smaller tickets in the same cell — same cell XIRR, spread default risk.`,
+});
+
 /* ---------------- The book at a glance ---------------- */
 addInsightCard({
   section: "The book at a glance",

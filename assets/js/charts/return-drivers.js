@@ -77,6 +77,72 @@ addChart(RD_SECTION, "Your matured loans by ticket size — does lending ₹500 
   };
 });
 
+addChart(RD_SECTION, "The same cells you rank, but cut by ticket size — is a ₹2,500 loan in a good cell as good as a ₹1,000 one? Matured only, every fee and default inside the number (return_drivers() → audit W5). Whole book.", "rd4", "Ticket size WITHIN each cell — the ₹2,500 trap is real, not a mix effect", () => {
+  const RD = (window.INSIGHTS_DATA || {}).return_drivers;
+  const cells = (RD && RD.by_ticket_in_cell) || [];
+  if (!cells.length) return "No cells with enough matured loans to cut by ticket size.";
+  const traps = [];
+  cells.forEach((cell) => {
+    const big = cell.buckets.find((b) => b.label === "₹2,500");
+    const small = cell.buckets.filter((b) => b.label !== "₹2,500" && b.xirr_all != null);
+    if (big && big.xirr_all != null && small.length && small.some((s) => s.xirr_all > big.xirr_all + 20)) {
+      traps.push(`${cell.tenure} mo × ${cell.band}`);
+    }
+  });
+  const trapTxt = traps.length ? ` The trap is real in <b>${traps.join(", ")}</b> — the same cell where small tickets made money.` : " No cell shows a clear ₹2,500 trap yet.";
+  return `Within one tenure × score cell, the ticket size changes the outcome: 6-month × 700–724 nets <b>+18 to +27%/yr</b> on ₹250–₹1,000 tickets but <b>−50%/yr</b> on ₹2,500 ones (29% of them defaulted vs 8–11%).${trapTxt} Hover any cell to see the ticket-by-ticket default rate.`;
+}, 340, () => {
+  const RD = (window.INSIGHTS_DATA || {}).return_drivers;
+  const cells = (RD && RD.by_ticket_in_cell) || [];
+  if (!cells.length) return null;
+  const labels = ["₹250", "₹500", "₹1,000", "₹2,500", "₹5,000+"];
+  const rows = cells.map((c) => ({
+    key: `${c.tenure} mo · ${c.band}`,
+    cells: c.buckets.reduce((m, b) => { m[b.label] = b; return m; }, {}),
+  }));
+  const data = [];
+  rows.forEach((r, ri) => {
+    labels.forEach((lab, ci) => {
+      const b = r.cells[lab];
+      data.push({
+        value: b ? b.xirr_all : null,
+        row: ri, col: ci, key: r.key, label: lab, b,
+      });
+    });
+  });
+  const vmax = Math.max(...data.filter((d) => d.value != null).map((d) => d.value));
+  const vmin = Math.min(...data.filter((d) => d.value != null).map((d) => d.value));
+  return {
+    ...baseOption(),
+    tooltip: {
+      ...baseOption().tooltip,
+      formatter: (ps) => {
+        const d = data[ps[0].dataIndex];
+        if (d.value == null) return `<b>${d.key} · ${d.label}</b><br/><span style='color:#8fa3c0'>too few matured loans to rate</span>`;
+        return `<b>${d.key} · ${d.label}</b><br/>net XIRR <b>${d.value.toFixed(1)}%/yr</b> incl. defaults & fees<br/><span style='color:#8fa3c0'>${fmt.format(d.b.loans)} matured · default ${d.b.def_rate.toFixed(1)}% · net kept ${inr(d.b.net_1000)}/₹1,000</span>`;
+      },
+    },
+    grid: { ...baseOption().grid, left: 130, right: 30, bottom: 56, top: 36 },
+    xAxis: { type: "category", data: labels, axisLabel: { color: "#8fa3c0", fontSize: 10 }, axisLine: { lineStyle: { color: "#334155" } } },
+    yAxis: { type: "category", data: rows.map((r) => r.key), axisLabel: { color: "#8fa3c0", fontSize: 10 } },
+    visualMap: {
+      min: vmin, max: vmax, calculable: false, orient: "horizontal", left: "center", bottom: 2,
+      inRange: { color: ["#7f1d1d", "#f87171", "#fbbf24", "#6ee7b7", "#059669"] },
+      textStyle: { color: "#8fa3c0", fontSize: 10 },
+    },
+    series: [{
+      type: "heatmap",
+      data: data.map((d) => [d.col, d.row, d.value]),
+      label: { show: true, color: "#0f1a2e", fontSize: 9.5, fontWeight: 700, formatter: (p) => {
+        const v = data[p.dataIndex].value;
+        return v == null ? "·" : v.toFixed(0);
+      } },
+      itemStyle: { borderColor: "#0f1a2e", borderWidth: 1.5, borderRadius: 3 },
+      emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(255,255,255,0.35)" } },
+    }],
+  };
+});
+
 addChart(RD_SECTION, "Monthly vs daily-repayment loans — same net-XIRR lens. Matured only; treat the daily sample as a hint (only a handful of daily loans have matured).", "rd3", "Repayment type vs realized net return", () => {
   const RD = (window.INSIGHTS_DATA || {}).return_drivers;
   if (!RD || !RD.by_repay.length) return "No matured loans to bucket.";

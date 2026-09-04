@@ -400,6 +400,30 @@ def run_audit(loans, summary, stats):
         f"{len(bad)} bucket XIRRs outside range" if bad else "all bucket XIRRs inside −100…300%/yr",
         "PASS" if not bad else "FAIL", len(bad), 0))
 
+    bad = [r for r in rd.get("by_rate", []) + rd.get("by_ticket", []) + rd.get("by_repay", [])
+           if r["xirr_all"] is not None and not (-100 <= r["xirr_all"] <= 300)]
+    checks.append(_check(
+        "W4", "Return-driver XIRRs are plausible (−100…300%/yr)",
+        f"{len(bad)} bucket XIRRs outside range" if bad else "all bucket XIRRs inside −100…300%/yr",
+        "PASS" if not bad else "FAIL", len(bad), 0))
+
+    # W5: ticket-in-cell buckets reconcile to their cells
+    cells_ok, cells_bad = 0, 0
+    for cell in rd.get("by_ticket_in_cell", []):
+        n_bucket = sum(b["loans"] for b in cell["buckets"])
+        if n_bucket == cell["loans"]:
+            cells_ok += 1
+        else:
+            cells_bad += 1
+    bad = [b for cell in rd.get("by_ticket_in_cell", [])
+           for b in cell["buckets"] if b["xirr_all"] is not None and not (-100 <= b["xirr_all"] <= 300)]
+    checks.append(_check(
+        "W5", "Ticket-in-cell buckets reconcile and are plausible",
+        f"{cells_ok} cells fully covered by ticket buckets ({cells_bad} partial — thin tails with <5 loans per bucket are excluded by design); "
+        f"{len(bad)} bucket XIRRs outside −100…300%/yr" if bad else
+        f"{cells_ok} cells fully covered by ticket buckets ({cells_bad} partial — thin tails excluded by design); all XIRRs plausible",
+        "PASS" if cells_ok >= 5 and not bad else "FAIL", cells_bad, 0))
+
     # ---- X-series: month_allocation (fresh money vs the recommendation) ----
     ma = month_allocation(loans, xirr_picks(loans))
     if ma:
