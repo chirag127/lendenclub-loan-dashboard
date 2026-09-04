@@ -362,8 +362,8 @@ const SECTIONS = [];
    "Everything" always show every curated chart regardless. */
 const ESSENTIAL_CHARTS = new Set([
   "g1", "dg1",                        // glance: status split + gauges
-  "rt1", "nr1", "nr2", "fe3",        // returns: ROI, XIRR by tenure, ladder, fee waterfall
-  "r5", "n1",                        // risk: NPA by tenure, tenure × score heatmap
+  "rt1", "nr2", "dx1", "nr6", "fe3", // returns: XIRR by tenure, ladder, pick heatmaps, fee waterfall
+  "n7", "n1",                        // risk: matured default rate, tenure × score heatmap
   "xa01",                            // atlas: net XIRR incl. defaults (whole book)
   "ny1", "vc1",                      // by-year NPA, vintage curves
   "hp1",                             // verdict: picks panel

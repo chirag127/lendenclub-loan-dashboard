@@ -108,14 +108,14 @@ addInsightCard({
 
 /* ---------------- Atlas section ---------------- */
 addInsightCard({
-  section: "The net-XIRR atlas — 42 heatmaps of the fine buckets",
+  section: "Fine-bucket net-XIRR atlas — tenure × score",
   tone: "info", icon: "🗺️", title: "How to read the atlas — and what the fine buckets say",
   need: (c) => c.A && c.A.slices,
   data: (c) => { const t = c.A.slices.ALL.totals; return `The whole matured book pools to <b>${pct(t.xirr_all)}/yr net</b> incl. every default (and <b>${pct(t.xirr_ok)}/yr</b> for repaying loans only) — but the buckets behind that average run from <b>+79%/yr</b> to <b>−51%/yr</b>. The 2025 vintage ran <b>${pct(c.A.slices["2025"].totals.xirr_all)}/yr</b>; 2026 is running <b>${pct(c.A.slices["2026"].totals.xirr_all)}/yr</b>.`; },
   why: () => `Ten-point score bands split what the 25-point picks bands average away: the best 3-month borrowers are not "score 700+", they are specific 10-point windows. Read the evidence map next to any bright cell — fewer than ~30 matured loans means the rate is still a hint, not a fact.`,
 });
 addInsightCard({
-  section: "The net-XIRR atlas — 42 heatmaps of the fine buckets",
+  section: "Fine-bucket net-XIRR atlas — tenure × score",
   tone: "warn", icon: "🧊", title: "2026 lends worse than 2025 — the book's edge is narrowing",
   need: (c) => c.A && c.A.slices,
   data: (c) => { const a = c.A.slices["2025"].totals, b = c.A.slices["2026"].totals; return `Same machinery, two years: 2025 matured loans net <b>${pct(a.xirr_all)}/yr</b> on <b>${fmt.format(a.matured)}</b> loans; 2026 matured loans net <b>${pct(b.xirr_all)}/yr</b> on <b>${fmt.format(b.matured)}</b>. Defaults more than doubled in rupee terms (₹${fmt.format(Math.round(a.npa_amt))} → ₹${fmt.format(Math.round(b.npa_amt))}).`; },

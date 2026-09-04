@@ -8,7 +8,7 @@ so **load order matters** and is fixed in `index.html`.
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
 (infrastructure)              (142 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 114 of 142,
+                                                       renders: 47 of 142,
                                                        not a fixed cap)
 ```
 
@@ -58,7 +58,7 @@ can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` ta
 
 ### Curation — the single source of truth for what renders
 `curation.js` rebuilds `SECTIONS` into the 9-section decision flow (book →
-supply → returns → risk → XIRR-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 114)**.
+supply → returns → risk → fine-bucket-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 47 — one chart per question; near-duplicates stay in the registry, only decision heatmaps are curated)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file
