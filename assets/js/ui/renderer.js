@@ -14,6 +14,9 @@
  *   - a section whose filtered slice has none of the loans it needs
  *     (hasLoansInSlice) renders a friendly empty-state instead of zeros;
  *     whole-book sections (whole: true) ignore filters and never empty-state.
+ * Every shown section is wrapped in a numbered .group block (accent colour by
+ * topic, live chart-count pill) that also serves as the jump target of the
+ * "Jump to" chips rendered by ui/tabs.js.
  * Classic script (no ES modules — must keep working from file://).
  * Load order is fixed in index.html; see assets/js/README too.
  * ============================================================ */
@@ -62,35 +65,59 @@ function emptyStateHtml(sec) {
   return `<div class="empty-state"><b>No loans match the current filters for this view.</b><span>${whole}</span></div>`;
 }
 
+/* accent per group so neighbouring sections read as separate blocks even while
+   scrolling; keyword-matched to keep semantic colouring stable across builds */
+const GROUP_ACCENTS = [
+  [/glance/, "#38bdf8"], [/supply/, "#818cf8"], [/actually pay/, "#22c55e"],
+  [/future/, "#a78bfa"], [/default — risk/, "#f59e0b"], [/atlas/, "#2dd4bf"],
+  [/NPA by origination year/, "#fb923c"], [/cohort/, "#fb7185"], [/watch-outs/, "#22d3ee"],
+  [/verdict/, "#4ade80"], [/registry/, "#94a3b8"],
+];
+function groupAccent(name) {
+  const hit = GROUP_ACCENTS.find(([re]) => re.test(name));
+  return hit ? hit[1] : "#3b82f6";
+}
+
 function buildLayout() {
   const key = layoutKey();
   if (key === lastLayoutKey) return;
   lastLayoutKey = key;
   disposeAllCharts();
   cardsEl.innerHTML = "";
-  activeSections().forEach((sec) => {
-    const secEl = document.createElement("section");
-    secEl.className = "section-title";
-    secEl.dataset.section = sec.name;
-    secEl.innerHTML = `<h2>${sec.name}</h2><p>${sec.sub}</p>`;
-    cardsEl.appendChild(secEl);
+  activeSections().forEach((sec, i) => {
+    /* every section renders as one visually distinct group: a numbered accent
+       header (title + sub + live chart count) followed by its tables, insight
+       cards and chart grid — the block is also the jump target of the chips */
+    const grp = document.createElement("div");
+    grp.className = "group";
+    grp.dataset.section = sec.name;
+    grp.style.setProperty("--ac", groupAccent(sec.name));
+    const head = document.createElement("header");
+    head.className = "group-head";
+    const n = visibleCharts(sec).length;
+    head.innerHTML =
+      `<span class="grp-num">${String(i + 1).padStart(2, "0")}</span>` +
+      `<div class="grp-txt"><h2>${sec.name}</h2><p>${sec.sub}</p></div>` +
+      `<span class="grp-count">${n} chart${n === 1 ? "" : "s"}</span>`;
+    grp.appendChild(head);
 
     /* data-presence gate: a filtered slice with none of the loans this section
        needs shows a friendly explanation instead of empty charts */
     if (!sec.whole && !hasLoansInSlice(sec)) {
-      secEl.insertAdjacentHTML("afterend", emptyStateHtml(sec));
+      grp.insertAdjacentHTML("beforeend", emptyStateHtml(sec));
+      cardsEl.appendChild(grp);
       return;
     }
 
-    if (sec.guardrails) cardsEl.insertAdjacentHTML("beforeend", `<div class="guardrails" id="guardrails"></div>`);
-    if (sec.returnsStatement) cardsEl.insertAdjacentHTML("beforeend", `<div class="returns-statement" id="returns-statement"></div>`);
-    if (sec.riskMatrix) cardsEl.insertAdjacentHTML("beforeend", `<div class="risk-matrix" id="risk-matrix"></div>`);
-    if (sec.npaYearTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="npa-year-table" id="npa-year-table"></div>`);
-    if (sec.vintageTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="vintage-table" id="vintage-table"></div>`);
-    if (sec.decisionTable) cardsEl.insertAdjacentHTML("beforeend", `<div class="decision-table" id="decision-table"></div>`);
-    if (sec.loanPicks) cardsEl.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
-    if (sec.why) cardsEl.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
-    if (sec.cards) cardsEl.insertAdjacentHTML("beforeend", `<div class="insight-cards" id="insight-cards-${CSS.escape(sec.name)}" data-section="${sec.name}"></div>`);
+    if (sec.guardrails) grp.insertAdjacentHTML("beforeend", `<div class="guardrails" id="guardrails"></div>`);
+    if (sec.returnsStatement) grp.insertAdjacentHTML("beforeend", `<div class="returns-statement" id="returns-statement"></div>`);
+    if (sec.riskMatrix) grp.insertAdjacentHTML("beforeend", `<div class="risk-matrix" id="risk-matrix"></div>`);
+    if (sec.npaYearTable) grp.insertAdjacentHTML("beforeend", `<div class="npa-year-table" id="npa-year-table"></div>`);
+    if (sec.vintageTable) grp.insertAdjacentHTML("beforeend", `<div class="vintage-table" id="vintage-table"></div>`);
+    if (sec.decisionTable) grp.insertAdjacentHTML("beforeend", `<div class="decision-table" id="decision-table"></div>`);
+    if (sec.loanPicks) grp.insertAdjacentHTML("beforeend", `<div class="loan-picks" id="loan-picks"></div>`);
+    if (sec.why) grp.insertAdjacentHTML("beforeend", `<div class="reasons" id="reasons"></div>`);
+    if (sec.cards) grp.insertAdjacentHTML("beforeend", `<div class="insight-cards" id="insight-cards-${CSS.escape(sec.name)}" data-section="${sec.name}"></div>`);
 
     if (sec.charts.length) {
       const grid = document.createElement("div");
@@ -103,8 +130,9 @@ function buildLayout() {
         card.innerHTML = `<div class="chart-head"><h3>${c.title}</h3><div class="chart-sub">${sub}</div></div><div class="chart-body" id="ch-${c.id}"></div>`;
         grid.appendChild(card);
       });
-      cardsEl.appendChild(grid);
+      grp.appendChild(grid);
     }
+    cardsEl.appendChild(grp);
   });
 }
 

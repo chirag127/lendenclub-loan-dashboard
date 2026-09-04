@@ -30,6 +30,28 @@ function setDensity(mode) {
   renderInsightCards();
 }
 
+/* short chip labels for the group jump-nav (full titles stay in the tab bar) */
+const GROUP_CHIP_LABELS = {
+  "The book at a glance": "Glance",
+  "Borrower supply & ticket sizes": "Supply & tickets",
+  "What loans actually pay — net of fees & defaults": "What loans pay",
+  "Expected future returns — what the book should earn next": "Future returns",
+  "Where loans default — risk by tenure × score": "Where loans default",
+  "Fine-bucket net-XIRR atlas — tenure × score": "XIRR atlas",
+  "NPA by origination year — tenure-level vs annualized": "NPA by year",
+  "Defaults by origination cohort — curves, rates & the ₹ bill": "Cohort curves",
+  "Cashflow & watch-outs": "Cashflow",
+  "The verdict — lend only these": "The verdict",
+};
+function groupChipLabel(sec) {
+  const full = "Full chart registry — everything else the code can show";
+  if (sec.name === full) return "Full registry";
+  const hit = GROUP_CHIP_LABELS[sec.name];
+  if (hit) return hit;
+  const short = sec.name.split(" — ")[0];
+  return short.length > 26 ? short.slice(0, 24) + "…" : short;
+}
+
 function renderTabs() {
   const bar = document.getElementById("viewTabs");
   if (!bar) return;
@@ -40,6 +62,12 @@ function renderTabs() {
       label: s.name === full ? "Full registry" : s.name,
       count: visibleCharts(s).length,
     })));
+  const chips = state.view === "All"
+    ? activeSections().map((s, i) => `
+        <button class="jchip" data-jump="${s.name.replace(/"/g, "&quot;")}" title="Jump to group ${String(i + 1).padStart(2, "0")} — ${s.name}">
+          <span class="jchip-n">${String(i + 1).padStart(2, "0")}</span>${groupChipLabel(s)}
+        </button>`).join("")
+    : "";
   bar.innerHTML = `
     <div class="tab-row" role="tablist">
       ${tabs.map((t) => `
@@ -53,7 +81,14 @@ function renderTabs() {
       ${["compact", "standard", "everything"].map((d) => `
         <button class="dbtn ${state.density === d ? "on" : ""}" data-density="${d}"
           title="${d === "compact" ? "Only the essential charts per section" : d === "standard" ? "The full curated set" : "Curated set + the full chart registry — every definition the code has"}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}
-    </div>`;
+    </div>
+    ${chips ? `<div class="jump-row"><span class="filter-label">Jump to</span><div class="jump-chips">${chips}</div></div>` : ""}`;
   bar.querySelectorAll(".vtab").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
   bar.querySelectorAll(".dbtn").forEach((b) => b.addEventListener("click", () => setDensity(b.dataset.density)));
+  bar.querySelectorAll(".jchip").forEach((b) =>
+    b.addEventListener("click", () => {
+      const target = b.dataset.jump;
+      const grp = [...document.querySelectorAll(".group")].find((g) => g.dataset.section === target);
+      if (grp) grp.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
 }

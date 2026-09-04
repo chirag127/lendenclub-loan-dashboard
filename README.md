@@ -61,6 +61,7 @@ Everything below the KPI row is ordered the way you decide: **glance → supply 
   - *Defaults by origination cohort — curves, rates & the ₹ bill* (3 + **vintage ledger**) — cumulative NPA rate by loan age, one line per origination month (does each cohort's default bill flatten or is it still climbing?), the pooled month-of-life of every NPA (31% strike in month 1, ~9 in 10 by month 4), and net kept per ₹1,000 after fees & every default, realized to date (Dec-25 kept ₹71/₹1,000; Feb-26 went net-negative at −₹11/₹1,000) — with a complete **ledger table** underneath (every cohort × every percentage: matured loans, NPA, rate over life/per year, ₹ lent, loss over life/per year, net kept ₹, net % of lent, net % per year — the annualized life-vs-per-year percentage bars for rate and ₹ bill that were de-duplicated from the page still live in the Full registry as vc3/vc4), all computed by `vintage()` in the Python pipeline and reconciled by audit checks Z1–Z5
   - *Cashflow & watch-outs* (5) — received by month, active-book received-to-date vs its schedule, active ₹ exposure by tenure, the overdue pipeline (DPD > 0), **NPA recovery by tenure**
   - *The verdict — lend only these* (7 + 2 panels + **the one-table decision view**) — the **Highest-XIRR loan picks panel** (every tenure × score cell with ≥10 completed loans ranked by net XIRR incl. all defaults, tiered Core/Support/Avoid, per-₹1,000 split from `xirr_picks()`), allocation donut, successful-vs-defaults chart, **two allocation charts** (`month_allocation()`: this month's money by tenure vs recommended and collapsed into verdict tiers — Sep-26 deployed ₹2.65L with only 56.8% in core cells; the cell-level detail lives in the decision table), **three return-driver charts** (`return_drivers()`: realized net XIRR by quoted-rate band — 48%+ quotes net 49%/yr vs 8.7% for <42%; by ticket size — ₹250–₹1,000 net 33–36%/yr, ₹2,500 tickets LOSE −8.7%/yr after defaults, ₹5,000+ recovers to 21.7%; and **ticket size WITHIN each tenure × score cell** — the ₹2,500 trap is real, not a mix effect: in 6-mo×700–724 the same cell nets +18–27%/yr on ₹250–₹1,000 tickets but −50%/yr on ₹2,500, 29% default vs 8–11%), the **one-table decision view** (`ui/decision-table.js`: every ranked cell — net XIRR incl. all defaults, repaying-only XIRR, matured default rate, net ₹/₹1,000, fee % of lent, quoted rate, tier, recommended ₹/₹1,000 and how much fresh money actually went into the cell this month — sortable by any column, avoid cells pinned at ₹0), the **“Lend only these” verdict strip** and **17 plain-language reason cards** (every figure read live from the data globals: why 2–3 month wins, why 12-month loses, why 6-month below 750 is the NPA engine, the ₹2,500 ticket trap, the 68.0 → 53.5 → 23.1% ladder — with the NPA-timing correction that front-loads defaulted loans' receipts — how the fee actually works, and risk = time × borrower quality)
+- **Charts divided into numbered groups** — every section renders as one visually separate block: a colour-accented header (number badge, title, explanation and live chart count) above its own tables, insight cards and chart grid, so you always know which question each group of charts answers. A **"Jump to" chip row** under the view bar (01 Glance … 10 Verdict) smooth-scrolls to any group while in All-views mode.
 - **Tabs & chart density** — an "All views" tab plus one tab per section (and a **Full registry** tab exposing every non-curated definition); Compact / Standard / **Everything** density switch, so the page can show as few as ~21 or as many as 151 charts. Sections whose filtered slice has no loans render a friendly empty-state instead of zeros — whole-book sections (future returns, atlas, by-year, vintage) keep their full history regardless.
 - **~50 plain-language insight cards** — a modular card engine (`ui/cards.js` + `ui/cards-insights.js`) renders "What the data shows / Why it happens" cards per section, every number read live from the data globals; a card whose data is missing in the current slice disappears rather than lying. Includes new cards on the fee mechanics (fee = % of principal returned, era increases) and this month's money vs the verdict. No cap or minimum — add a card with `addInsightCard({...})` and it renders.
 - **Live filters** — status chips, repayment type, single-month data window (charts + KPIs + table react)
@@ -71,15 +72,17 @@ The remaining 106 chart definitions (seasonality, status treemaps, correlations,
 ## Repo structure
 
 ```
-├── index.html            # dashboard page (v22 — loads data globals + modular JS)
+├── index.html            # dashboard page (v23 — loads data globals + modular JS)
 ├── assets/
 │   ├── echarts.min.js    # ECharts vendored locally (Apache-2.0)
-│   ├── styles.css        # dark theme│       └── js/               # modular classic scripts (no build, works from file://)
-│           ├── README.md     # module map + load order
-│           ├── core.js       # helpers, state, chart registry (SECTIONS + addChart), ESSENTIAL_CHARTS│       ├── charts/       # all 142 chart definitions, one topic per file
-│       ├── curation.js   # ★ what renders: the 45 decision charts in 10 sections (+ Full-registry tab)
-│           ├── ui/           # one renderer per responsibility (tabs, cards, panels, KPIs, tables…)
-│           └── boot.js       # CDN fallback, init(), filter listeners (load last)
+│   ├── styles.css        # dark theme
+│   └── js/               # modular classic scripts (no build, works from file://)
+│       ├── README.md     # module map + load order
+│       ├── core.js       # helpers, state, chart registry (SECTIONS + addChart), ESSENTIAL_CHARTS
+│       ├── charts/       # all 151 chart definitions, one topic per file
+│       ├── curation.js   # ★ what renders: the 45 decision charts in 10 numbered groups (+ Full-registry tab)
+│       ├── ui/           # one renderer per responsibility (tabs + group jump-nav, cards, panels, tables…)
+│       └── boot.js       # CDN fallback, init(), filter listeners (load last)
 ├── data/                 # generated by scripts/build.py (json + js globals)
 │   ├── loans.json/js     # all 3,672 loans (parsed from xlsx)
 │   ├── summary.json/js   # lender + summary + portfolio stats
