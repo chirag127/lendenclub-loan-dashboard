@@ -1,7 +1,7 @@
 /* ============================================================
  * curation.js — DECISION VIEW
- * Rebuilds SECTIONS from the registry into the 6-section decision flow and the curated render set
- * (currently 60 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * Rebuilds SECTIONS from the registry into the 7-section decision flow and the curated render set
+ * (currently 63 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
  * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
  * source of truth for what shows.
  * ------------------------------------------------------------
@@ -10,8 +10,8 @@
  * ============================================================ */
 
 /* ============ DECISION VIEW — the curated set that answers "which loans should I fund?" ============
-   All 88 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
-   decision flow: glance -> supply -> returns -> risk -> cashflow/watch-outs -> verdict. The count is not
+   All 91 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
+   decision flow: glance -> supply -> returns -> risk -> NPA-by-year -> cashflow/watch-outs -> verdict. The count is not
    fixed at 50 — more charts and other forms (gauges, tables, matrices) are added by listing them here.
    Everything shown nets out fees + NPAs or feeds the risk/returns math behind the picks. */
 (function curateDecisionView() {
@@ -42,6 +42,12 @@
       riskMatrix: true,
     },
     {
+      name: "NPA by origination year — tenure-level vs annualized",
+      sub: "The same default and loss rates shown two ways — over the loan's whole life and annualized per year (× 12/tenure, so 2-month and 12-month money compare fairly) — split by the origination year (Dec-2025 vintage vs 2026) with the full ledger underneath. Whole book: slicing the month filter would break the by-year attribution, so these charts and the table do not react to it.",
+      ids: ["ny1", "ny2", "ny3"],
+      npaYearTable: true,
+    },
+    {
       name: "Cashflow & watch-outs",
       sub: "What actually comes in each month, what the active book is projected to return, and the overdue pipeline that will decide your next default bill.",
       ids: ["i1", "i3", "i5", "i6", "i7", "rt2", "rt4", "rt6", "n10", "n11", "r6", "r8", "dx2", "dx4", "n12", "i8", "r7"],
@@ -62,6 +68,7 @@
     if (g.loanPicks) sec.loanPicks = true;
     if (g.why) sec.why = true;
     if (g.riskMatrix) sec.riskMatrix = true;
+    if (g.npaYearTable) sec.npaYearTable = true;
     SECTIONS.push(sec);
   });
 })();

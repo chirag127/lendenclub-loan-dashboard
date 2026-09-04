@@ -402,3 +402,37 @@ table.dm { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width:
 .dm-k.dm-bad { color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
 .dm-key .dm-note { color: var(--muted); }
 .dm-note { font-size: 11px; color: var(--muted); }
+
+/* ---------- NPA-by-year ledger (plain HTML, no chart lib) ---------- */
+.npa-year-table {
+  margin: 0 0 16px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(51, 65, 85, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+table.nyt { min-width: 1180px; }
+.nyt td, .nyt th { text-align: right; }
+.nyt .nyt-lab, .nyt .nyt-year { text-align: left; }
+.nyt .nyt-year {
+  color: #e2e8f0; font-weight: 700; white-space: nowrap; vertical-align: middle;
+  border-right: 1px solid rgba(31, 46, 74, 0.5); background: rgba(2, 6, 23, 0.4);
+}
+.nyt .nyt-num { font-variant-numeric: tabular-nums; }
+.nyt .nyt-ann { color: #fcd34d; font-weight: 700; }
+.nyt .nyt-total td {
+  border-top: 1px dashed rgba(51, 65, 85, 0.6);
+  background: rgba(2, 6, 23, 0.45); font-weight: 600; color: #e2e8f0;
+}
+.nyt .nyt-total .nyt-lab { color: #fff; }
+.nyt .nyt-grand td {
+  background: rgba(34, 197, 94, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.22);
+  font-weight: 700; color: #fff;
+}
+.nyt .nyt-grand .nyt-ann { color: #fbbf24; }
+.nyt .nyt-year-ALL {
+  background: rgba(2, 6, 23, 0.45); color: #fff;
+  font-weight: 800;
+}
+.nyt .dm-cell { white-space: nowrap; }

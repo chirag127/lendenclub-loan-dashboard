@@ -1,6 +1,6 @@
 # 💚 LenDenClub Loan Analytics Dashboard
 
-Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — 60 curated charts (of 88 defined) plus gauge dials, a plain-HTML tenure × score risk matrix, KPIs, recommendation panels and a full loan register. Every view answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
+Interactive **lending-decision dashboard** for a **LenDenClub (Lending Club India) manual lending report** — 63 curated charts (of 91 defined) plus gauge dials, plain-HTML tables (tenure × score risk matrix + an NPA-by-year ledger), KPIs, recommendation panels and a full loan register. Every view answers one question: *which loans should I fund next?* Hosted on GitHub Pages.
 
 The curated set is **not fixed at 50** — more charts and other forms (gauges, tables, matrices) are added by listing their ids in one file (`assets/js/curation.js`).
 
@@ -8,7 +8,7 @@ The curated set is **not fixed at 50** — more charts and other forms (gauges, 
 
 **Live:** https://chirag127.github.io/lendenclub-loan-dashboard/
 
-![Charts](https://img.shields.io/badge/charts-60%20curated-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-pure%20static%20html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-22%2F30%20checks%20passed-brightgreen)
+![Charts](https://img.shields.io/badge/charts-63%20curated-brightgreen) ![Loans](https://img.shields.io/badge/loans-2%2C993-blue) ![Stack](https://img.shields.io/badge/stack-pure%20static%20html%2Bjs%2Becharts-orange) ![Audit](https://img.shields.io/badge/audit-24%2F32%20checks%20passed-brightgreen)
 
 ## The data
 
@@ -42,17 +42,18 @@ The curated set is **not fixed at 50** — more charts and other forms (gauges, 
 - **Recovery is strong:** cumulative principal received has tracked cumulative disbursements closely, and 100% of interest/fees received to date total ₹2.53L vs ₹45.1K paid in platform fees.
 - 24 daily-repayment loans vs 2,969 monthly — daily loans are the minority, mostly 2-month tenures.
 
-## Dashboard features — a decision flow, 60 charts in 6 sections (not a fixed cap)
+## Dashboard features — a decision flow, 63 charts in 7 sections (not a fixed cap)
 
-Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → watch-outs → verdict.** Charts are one form of showing the data; the dashboard also uses **ECharts gauge dials** and **plain-HTML tables** (loan register + the tenure × score risk matrix) wherever a table or dial reads better than a chart.
+Everything below the KPI row is ordered the way you decide: **glance → supply → returns → risk → NPA-by-year → watch-outs → verdict.** Charts are one form of showing the data; the dashboard also uses **ECharts gauge dials** and **plain-HTML tables** (loan register + the tenure × score risk matrix + the NPA-by-year ledger) wherever a table or dial reads better than a chart.
 
 - **12 KPI cards** — disbursed, received, interest, P&L, fees, NPA, outstanding, avg rate, active/closed/NPA counts, DPD exposure
-- **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 30 checks (22 PASS · 8 notes · 0 FAIL), regenerated on every build
-- **60 interactive charts** (Apache ECharts) in 6 sections + extra forms:
+- **Data-integrity audit bar** — every figure reconciled against the source report by `scripts/ldc/audit.py`; 32 checks (24 PASS · 8 notes · 0 FAIL), regenerated on every build
+- **63 interactive charts** (Apache ECharts) in 7 sections + extra forms:
   - *The book at a glance* (8) — status split, money in the portfolio, repayment-type split, monthly disbursed ₹, monthly disbursed by tenure, tenure distribution, disbursed ₹ by tenure + **three gauge dials** (net XIRR incl. defaults, NPA rate, NPA recovery)
   - *Borrower supply & ticket sizes* (4) — avg ticket by tenure, score histogram, avg score by month (is quality trending?), avg ticket by score band (high scores = bigger loans)
   - *What loans actually pay — net of fees & defaults* (15) — P&L/ROI/annualized statement panel, XIRR by tenure (successful vs **incl. all defaults**), simple-vs-XIRR and amortization explainers, realized-vs-projected net ROI by tenure, the full rate ladder (sticker → fees → defaults → net), cumulative net earnings, net ROI by score band, fee vs NPA drag, **projected net-ROI heatmap (tenure × score)**, default-rate sensitivity, net ₹ per loan by tenure, **net-XIRR matrix heatmap (tenure × score)**, contracted-vs-collected interest by tenure, and the money-map bubble
   - *Where loans default — risk by tenure × score* (14 + **risk-matrix table**) — NPA counts/₹/rates by month, NPA rate by tenure & score band, NPA heatmap tenure × score + loan-count denominator, loss-rate ₹ by tenure, share of loans vs NPAs, interest vs NPA loss, matured-only default rates, score-tier behaviour, risk-vs-return bubbles + **5 auto-computed lending guardrail cards** + a plain-HTML **tenure × score risk reference table** (every cell: loans, NPA %, matured default %, loss % — no cell hidden)
+  - *NPA by origination year — tenure-level vs annualized* (3 + **NPA-by-year ledger**) — every default and ₹-loss figure shown twice — over the loan's whole life (matured basis) and **annualized per year** (× 12/tenure, same convention as annualized returns): by tenure, by origination year (Dec-2025 vintage vs 2026, blended at each year's average tenure), and the rupee cost of NPA per tenure, plus a full **ledger table** (2025/2026/all × tenure: matured loans, NPA count, rate over life, rate per year, ₹ lent, NPA ₹, loss over life, loss per year) computed by `npa_by_year()` in the Python pipeline and reconciled by audit checks Y1–Y2
   - *Cashflow & watch-outs* (17) — received/interest/P&L by month, recovery rate, cumulative received vs disbursed, expected vs received, expected future EMI receipts, active-book expected-vs-received and **projected net XIRR** (`active_xirr()`), active ₹ exposure by tenure **and by origination month**, overdue share, avg DPD and 30/60/90-day severity, **NPA recovery by tenure**
   - *The verdict — lend only these* (2 + 2 panels) — the **Highest-XIRR loan picks panel** (every tenure × score cell with ≥10 completed loans ranked by net XIRR incl. all defaults, tiered Core/Support/Avoid, per-₹1,000 split from `xirr_picks()`), allocation donut, successful-vs-defaults chart, the **“Lend only these” verdict strip** and **14 plain-language reason cards** (every figure read live from the data globals: why 2–3 month wins, why 12-month loses, why 6-month below 750 is the NPA engine, the 67.7 → 53.2 → 22.2% ladder, and risk = time × borrower quality)
 - **Live filters** — status chips, repayment type, single-month data window (charts + KPIs + table react)
@@ -70,9 +71,9 @@ The remaining 28 chart definitions (seasonality, status treemaps, correlations, 
 │   └── js/               # modular classic scripts (no build, works from file://)
 │       ├── README.md     # module map + load order
 │       ├── core.js       # helpers, state, chart registry (SECTIONS + addChart)
-│       ├── charts/       # all 83 chart definitions, one topic per file
-│       ├── curation.js   # ★ what renders: the 50 decision charts in 6 sections
-│       ├── ui/           # one renderer per responsibility (panels, KPIs, table…)
+│       ├── charts/       # all 91 chart definitions, one topic per file
+│       ├── curation.js   # ★ what renders: the 63 decision charts in 7 sections
+│       ├── ui/           # one renderer per responsibility (panels, KPIs, tables…)
 │       └── boot.js       # CDN fallback, init(), filter listeners (load last)
 ├── data/                 # generated by scripts/build.py (json + js globals)
 │   ├── loans.json/js     # all 2,993 loans (parsed from xlsx)
@@ -104,15 +105,16 @@ The pipeline is **fully modular** (one responsibility per module) and uses only 
 
 ## Audit & verification
 
-The audit engine (`scripts/ldc/audit.py`) runs **29 checks** on every build:
+The audit engine (`scripts/ldc/audit.py`) runs **32 checks** on every build:
 
 - **Money reconciliation (M1–M7)** — per-loan sums vs the report's headline figures (disbursed, received, principal, interest, fees match to the paisa; NPA and outstanding are book-level figures with documented deltas)
 - **Counts & keys (C1–C5)** — row count, status counts add up, loan IDs unique, no blank fields
 - **Value sanity (V1–V6)** — non-negative amounts, rates 0–100%, scores 0–1000, known tenures, DPD ≥ 0, chart-critical fields populated
-- **Cross-field consistency (X1–X7)** — principal+interest = total received, date ordering, no over-repaid ACTIVE loans, closed loans have zero DPD
+- **Cross-field consistency (X1–X8)** — principal+interest = total received, date ordering, no over-repaid ACTIVE loans, closed loans have zero DPD, EMI rebate reality on closed loans
 - **Matrix integrity (T1–T4)** — tenure × score heatmap cells re-derived in Python so the JS charts can never silently disagree
+- **NPA-by-year ledger integrity (Y1–Y2)** — the year × tenure rows sum exactly to the book's matured loans, NPA count and NPA rupees
 
-Current result: **22 PASS · 7 documented notes · 0 FAIL**. The notes are verified source-data characteristics (batch order IDs, unfunded loans without a disbursement date, ₹-level rounding on prepayments/recoveries, book-level NPA totals).
+Current result: **24 PASS · 8 documented notes · 0 FAIL**. The notes are verified source-data characteristics (batch order IDs, unfunded loans without a disbursement date, ₹-level rounding on prepayments/recoveries, book-level NPA totals).
 
 ## Notes
 

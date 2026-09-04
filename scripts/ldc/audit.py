@@ -208,6 +208,26 @@ def run_audit(loans, summary, stats):
                          f"{npa_2m} of {matrix.get('2', {}).get('count')} two-month loans are NPA",
                          "PASS" if npa_2m == 3 else "FAIL", npa_2m, 3))
 
+    # ---- Y-series: NPA-by-year ledger integrity ----
+    from .insights import npa_by_year
+    ny = npa_by_year(loans)
+    tenure_rows = [r for r in ny["rows"] if r["tenure"] is not None and r["year"] != "ALL"]
+    yr_mat = sum(r["matured"] for r in tenure_rows)
+    yr_npa = sum(r["npa"] for r in tenure_rows)
+    yr_amt = round(sum(r["npa_amt"] for r in tenure_rows), 2)
+    yr_disb = round(sum(r["disb"] for r in tenure_rows), 2)
+    matured_total = sum(1 for l in loans if l["status"] in ("CLOSED", "NPA"))
+    checks.append(_check(
+        "Y1", "NPA-by-year rows cover every matured loan",
+        f"rows sum to {yr_mat} matured loans (incl. {yr_npa} NPA) vs {matured_total} matured on the book",
+        "PASS" if yr_mat == matured_total and yr_npa == stats["npa_loans"] else "FAIL",
+        {"matured": yr_mat, "npa": yr_npa}, {"matured": matured_total, "npa": stats["npa_loans"]}))
+    checks.append(_check(
+        "Y2", "NPA-by-year money reconciles to the NPA ledger",
+        f"rows sum to ₹{yr_amt:,.2f} NPA principal on ₹{yr_disb:,.2f} matured disbursed vs "
+        f"book NPA ₹{sums['npa']:,.2f}",
+        "PASS" if abs(yr_amt - sums["npa"]) <= TOL else "FAIL", yr_amt, sums["npa"]))
+
     # ---- verdict ----
     fails = [c for c in checks if c["status"] == "FAIL"]
     infos = [c for c in checks if c["status"] == "INFO"]

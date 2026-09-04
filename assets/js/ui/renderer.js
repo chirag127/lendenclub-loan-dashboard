@@ -34,6 +34,12 @@ function buildLayout() {
       mx.id = "risk-matrix";
       cardsEl.appendChild(mx);
     }
+    if (sec.npaYearTable) {
+      const ny = document.createElement("div");
+      ny.className = "npa-year-table";
+      ny.id = "npa-year-table";
+      cardsEl.appendChild(ny);
+    }
     if (sec.loanPicks) {
       const lp = document.createElement("div");
       lp.className = "loan-picks";
@@ -76,6 +82,7 @@ function renderAll() {
   renderReturnsStatement();
   renderLoanPicks();
   renderRiskMatrix();
+  renderNpaYearTable();
 }
 
 /* make every tooltip formatter immune to axis-vs-item params shape */

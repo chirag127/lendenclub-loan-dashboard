@@ -45,6 +45,7 @@ def main():
         "returns_by_tenure": insights.returns_by_tenure(loans),
         "overall_returns": insights.overall_returns(loans),
         "interest_collection_rates": insights.interest_collection_rates(loans),
+        "npa_by_year": insights.npa_by_year(loans),
         "xirr_returns": insights.xirr_returns(loans),
         "xirr_picks": insights.xirr_picks(loans),
         "active_xirr": insights.active_xirr(loans),

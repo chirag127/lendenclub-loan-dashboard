@@ -323,6 +323,110 @@ SCORE_PICK_BANDS = [
 ]
 
 
+def _annualize(rate_pct, months):
+    """Per-cycle rate -> per-year equivalent by turnover: rate x (12 / months).
+
+    Same convention as the dashboard's annualized ROI (money at a t-month tenure
+    recycles 12/t times a year), so an annualized NPA sits on the same footing
+    as an annualized return and tenures compare fairly.
+    """
+    if rate_pct is None or not months or months <= 0:
+        return None
+    return round(rate_pct * 12.0 / months, 1)
+
+
+def npa_by_year(loans):
+    """NPA ledger by origination year x tenure on the matured book.
+
+    'Matured' = CLOSED + NPA loans only: still-active loans can still default, so
+    including them would understate every rate (same convention as tenure_matrix).
+    For every bucket two figures are reported side by side:
+
+      * ``rate_life``  — NPA over the loan's whole term (matured basis);
+      * ``rate_ann``   — annualized NPA: same rate scaled to a full year of
+        lending by turnover, rate x 12/tenure (2-month money recycles 6x a year,
+        so its small default rate stacks up; a 12-month rate does not scale).
+        Same convention as the dashboard's annualized returns, so NPA can be set
+        directly against annualized net return per tenure.
+
+    The money side mirrors the count side: ``loss_life`` / ``loss_ann`` = NPA
+    principal as % of the rupees disbursed on the same matured loans, over the
+    term and per year. Year-total rows blend tenures at the pool's average
+    tenure (months weighted by matured loan count), so an annualized figure
+    exists for "2025" and "2026" too.
+    """
+    def _pool_stats(pool):
+        matured = len(pool)
+        npa = sum(1 for l in pool if l["status"] == "NPA")
+        closed = matured - npa
+        disb = round(sum(l["amount"] or 0 for l in pool), 2)
+        npa_amt = round(sum(l["npa_amount"] or 0 for l in pool if l["status"] == "NPA"), 2)
+        return matured, closed, npa, disb, npa_amt
+
+    matured_all = [l for l in loans if l["status"] in ("CLOSED", "NPA")
+                   and l.get("disbursement_date")]
+    years = sorted({l["disbursement_date"][:4] for l in matured_all})
+
+    def _rows_for(pool):
+        """Tenure rows for a pool, then its blended all-tenure row."""
+        out = []
+        tot_m, tot_n, tot_disb, tot_npa_amt = 0, 0, 0.0, 0.0
+        months_weighted = 0
+        for t in TENURES:
+            sel = [l for l in pool if l["tenure"] == t]
+            if not sel:
+                continue
+            m, c, n, disb, amt = _pool_stats(sel)
+            rate_life = round(100 * n / m, 1) if m else None
+            out.append({
+                "year": None, "tenure": t, "matured": m, "closed": c, "npa": n,
+                "disb": disb, "npa_amt": amt,
+                "rate_life": rate_life,
+                "rate_ann": _annualize(rate_life, t),
+                "loss_life": round(100 * amt / disb, 1) if disb else None,
+                "loss_ann": _annualize(100 * amt / disb, t) if disb else None,
+                "avg_months": t, "small": m < 10,
+            })
+            tot_m += m; tot_n += n; tot_disb += disb; tot_npa_amt += amt
+            months_weighted += m * t
+        if pool:
+            avg_months = round(months_weighted / tot_m, 1) if tot_m else None
+            rate_life = round(100 * tot_n / tot_m, 1) if tot_m else None
+            out.append({
+                "year": None, "tenure": None, "matured": tot_m, "closed": tot_m - tot_n,
+                "npa": tot_n, "disb": round(tot_disb, 2), "npa_amt": round(tot_npa_amt, 2),
+                "rate_life": rate_life,
+                "rate_ann": _annualize(rate_life, avg_months),
+                "loss_life": round(100 * tot_npa_amt / tot_disb, 1) if tot_disb else None,
+                "loss_ann": _annualize(100 * tot_npa_amt / tot_disb, avg_months) if tot_disb else None,
+                "avg_months": avg_months, "small": False,
+            })
+        return out
+
+    rows = []
+    for y in years:
+        pool = [l for l in matured_all if l["disbursement_date"][:4] == y]
+        for r in _rows_for(pool):
+            r["year"] = y
+            rows.append(r)
+    for r in _rows_for(matured_all):
+        r["year"] = "ALL"
+        rows.append(r)
+
+    return {
+        "years": years,
+        "tenures": TENURES,
+        "rows": rows,
+        "note": "matured = CLOSED + NPA loans only (active loans can still default); "
+                "rate_life = NPA loans / matured over the loan's whole term; "
+                "rate_ann = annualized by turnover rate x 12/tenure (same convention as "
+                "annualized returns, so NPA compares directly with return per tenure); "
+                "loss_life / loss_ann = NPA principal as % of rupees disbursed on the "
+                "same matured loans, over the term and per year; year totals blend "
+                "tenures at the pool's average tenure",
+    }
+
+
 def xirr_picks(loans, min_matured=10):
     """Rank tenure × score cells by default-inclusive net XIRR and derive a
     recommended lending allocation from the lender's own completed-loan history.
