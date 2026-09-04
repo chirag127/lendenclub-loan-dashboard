@@ -7,8 +7,8 @@ so **load order matters** and is fixed in `index.html`.
 
 ```
 core.js                       → charts/*.js            → curation.js      → ui/*.js      → boot.js
-(infrastructure)              (100 chart definitions)   (decide what       (DOM renderers) (init & start)
-                                                       renders: 72 of 100,
+(infrastructure)              (142 chart definitions)   (decide what       (DOM renderers) (init & start)
+                                                       renders: 114 of 142,
                                                        not a fixed cap)
 ```
 
@@ -20,7 +20,7 @@ core.js                       → charts/*.js            → curation.js      �
 | `core.js` | Formatting helpers (`inr`, `fmt`, `pct`…), palette/theme, shared state (`LOANS`, `SUMMARY`, `MONTHS`, filters), data helpers, tenure × score stats, net-projection maths, shared ECharts option pieces, `polish()` styling pass, and the chart registry (`SECTIONS` + `addChart`). |
 
 ### Chart definitions (`charts/`) — one topic per file
-All **100** charts are defined here. Which ones *render* is decided later by `curation.js`.
+All **142** charts are defined here. Which ones *render* is decided later by `curation.js`.
 | File | Charts | Rendered in the decision view |
 |---|---|---|
 | `portfolio.js` | g1–g4 | g1, g2, g3 |
@@ -37,6 +37,7 @@ All **100** charts are defined here. Which ones *render* is decided later by `cu
 | `decision-extra.js` | dx1–dx4, dg1 | all — new decision views (net-XIRR matrix heatmap, NPA recovery, contracted-vs-collected interest, active money by vintage, gauge dials) |
 | `npa-year.js` | ny1–ny4 | all — NPA by origination year × tenure: rate over the loan's life vs annualized per year (count side + rupee side) + a year × tenure heatmap of the annualized rate |
 | `vintage.js` | vc1–vc5 | all — vintage curves: cumulative NPA rate by loan age per origination month cohort (flattened bill vs still-climbing), when defaults strike (month-of-life histogram), NPA rate & ₹ loss per cohort over the loan's life vs annualized per year, and net kept per ₹1,000 after fees & every default |
+| `atlas.js` | xa01–xa42 | all — the net-XIRR atlas: 42 heatmaps of 14 per-bucket metrics (net XIRR incl. defaults, repaying-only XIRR, drag, per-loan median/mean, default/loss rates over life & per year, fee %, sticker, net ₹/₹1,000, evidence) × 3 slices (whole book/2025/2026) over tenure × 10-pt score bands |
 | `optional.js` | x1–x5 | — (kept for power users) |
 
 **The count is not fixed.** The earlier “exactly 50” rule was a minimum intent, not a ceiling:
@@ -44,8 +45,8 @@ add a new `addChart(...)` and list its id in a `curation.js` group and it render
 can also host new forms (gauges like `dg1`, plus the plain-HTML `risk-matrix` table below).
 
 ### Curation — the single source of truth for what renders
-`curation.js` rebuilds `SECTIONS` into the 8-section decision flow (book →
-supply → returns → risk → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 72)**.
+`curation.js` rebuilds `SECTIONS` into the 9-section decision flow (book →
+supply → returns → risk → XIRR-atlas → NPA-by-year → vintage → watch-outs → verdict) and keeps the **curated render set (currently 114)**.
 To show or hide a chart, edit its id in that file's group lists — nothing else needs to change.
 
 ### UI renderers (`ui/`) — one responsibility per file

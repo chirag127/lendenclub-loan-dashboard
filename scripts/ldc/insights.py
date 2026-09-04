@@ -753,3 +753,171 @@ def overall_returns(loans):
         "closed_disb": c["disb"],
         "closed_net_roi": round(100 * (c["interest"] - c["fee"]) / c["disb"], 2) if c["disb"] else None,
     }
+
+# ---------------------------------------------------------------------------
+# xirr_atlas: the fine-bucket net-XIRR atlas — "which bucket earns what, per year"
+# ---------------------------------------------------------------------------
+ATLAS_BANDS = []
+for _lo in range(700, 800, 10):
+    ATLAS_BANDS.append((_lo, _lo + 9, "%d-%d" % (_lo, _lo + 9)))
+ATLAS_BANDS.append((800, 999, "800+"))
+ATLAS_SLICES = ["ALL", "2025", "2026"]
+
+
+def _atlas_band(score):
+    """Index into ATLAS_BANDS for a score, or None above/below the range."""
+    if score is None:
+        return None
+    for i, (lo, hi, _lab) in enumerate(ATLAS_BANDS):
+        if lo <= score <= hi:
+            return i
+    return None
+
+
+def _pool_xirr(pool, closed_only=False):
+    """Money-weighted net XIRR of a matured-loan pool (same even-EMI convention
+    as xirr_returns / xirr_picks: amount out at disbursement, (received − platform
+    fee) spread over the tenure's EMIs). closed_only drops NPA loans entirely."""
+    cfs = []
+    for l in pool:
+        if closed_only and l["status"] != "CLOSED":
+            continue
+        amt = l["amount"] or 0
+        t = int(l["tenure"] or 1)
+        if amt <= 0 or t < 1 or not l["repayment_start"]:
+            continue
+        net_in = (l["total_received"] or 0) - (l["platform_fee"] or 0)
+        emi = net_in / t
+        cfs.append((0, -amt))
+        for i in range(1, t + 1):
+            d = _days(l["disbursement_date"], _add_months(l["repayment_start"], i - 1))
+            cfs.append((d, emi))
+    if not cfs:
+        return None
+    return round(100 * _irr(_norm(cfs)), 1)
+
+
+def _per_loan_ann(l):
+    """One matured loan's realised annualized net return incl. fees & its default:
+    profit = received − amount − fee over the loan's life, annualized by turnover
+    (× 12/tenure — the same convention as the rest of the dashboard). A total loss
+    of principal is capped at −100%/yr (the money is lost once, whatever the term)."""
+    amt = l["amount"] or 0
+    t = int(l["tenure"] or 1)
+    if amt <= 0 or t < 1:
+        return None
+    prof = (l["total_received"] or 0) - amt - (l["platform_fee"] or 0)
+    ann = 100.0 * prof / amt * 12.0 / t
+    return max(-100.0, ann)
+
+
+def xirr_atlas(loans):
+    """Per-bucket net-XIRR atlas over the matured book.
+
+    Buckets = tenure (2/3/4/5/6/12 months) × LenDenClub score in 10-point bands
+    from 700 (700-709 … 790-799, then 800+). For every non-empty bucket, on the
+    matured loans (CLOSED + NPA — active loans can still default and are left
+    out), this computes:
+
+      * ``xirr_all`` / ``xirr_ok`` — money-weighted annualized net XIRR of the
+        whole bucket (every default and fee inside the number) and of its
+        repaying loans only (the upper bound);
+      * ``drag`` — xirr_ok − xirr_all, the annual-return points defaults eat;
+      * ``loan_med`` / ``loan_mean`` — median/mean of every individual loan's
+        annualized net return incl. fees & defaults (per-loan layer);
+      * the count and money side: matured / npa, default rate over the loan's
+        life and per year, principal-loss % of ₹ lent (life + per year),
+        realised platform fee % of ₹ lent, average borrower rate, and net kept
+        ₹ per ₹1,000 lent.
+
+    Slices: the whole matured book and each origination year (2025 / 2026).
+    Cells with < 5 matured loans report counts only (the rates would be noise).
+    """
+    matured = [l for l in loans
+               if l["status"] in ("CLOSED", "NPA") and l.get("disbursement_date")
+               and l.get("repayment_start") and (l["amount"] or 0) > 0]
+    pools = {"ALL": matured,
+             "2025": [l for l in matured if l["disbursement_date"][:4] == "2025"],
+             "2026": [l for l in matured if l["disbursement_date"][:4] == "2026"]}
+    MIN_EV = 5  # minimum matured loans before a rate is trustworthy enough to print
+
+    def _bucket_cells(pool):
+        import statistics
+        cells = {}
+        for t in TENURES:
+            tsel = [l for l in pool if l["tenure"] == t]
+            for bi, (_lo, _hi, lab) in enumerate(ATLAS_BANDS):
+                sel = [l for l in tsel if _atlas_band(l["score"]) == bi]
+                if not sel:
+                    continue
+                npa = [l for l in sel if l["status"] == "NPA"]
+                closed = [l for l in sel if l["status"] == "CLOSED"]
+                disb = sum(l["amount"] or 0 for l in sel)
+                amt_npa = sum(l["npa_amount"] or 0 for l in npa)
+                fee = sum(l["platform_fee"] or 0 for l in sel)
+                interest = sum(l["interest_received"] or 0 for l in sel)
+                matured_n = len(sel)
+                ok = matured_n >= MIN_EV
+                def_rate = (100.0 * len(npa) / matured_n) if matured_n else None
+                loss_life = (100.0 * amt_npa / disb) if disb else None
+                sticker = (sum(l["interest_rate"] or 0 for l in sel if l["interest_rate"])
+                           / sum(1 for l in sel if l["interest_rate"])) \
+                    if any(l["interest_rate"] for l in sel) else None
+                per_loan = [v for v in (_per_loan_ann(l) for l in sel) if v is not None]
+                cell = {
+                    "t": t, "band": lab, "matured": matured_n,
+                    "npa": len(npa), "disb": round(disb, 2),
+                    "npa_amt": round(amt_npa, 2),
+                    "xirr_all": _pool_xirr(sel) if ok else None,
+                    "xirr_ok": _pool_xirr(closed, closed_only=True) if ok and closed else None,
+                    "drag": None, "loan_med": None, "loan_mean": None,
+                    "def_rate": round(def_rate, 1) if ok and def_rate is not None else None,
+                    "def_ann": _annualize(def_rate, t) if ok and def_rate is not None else None,
+                    "loss_life": round(loss_life, 1) if ok and loss_life is not None else None,
+                    "loss_ann": _annualize(loss_life, t) if ok and loss_life is not None else None,
+                    "fee_pct": round(100.0 * fee / disb, 2) if ok and disb else None,
+                    "sticker": round(sticker, 1) if ok and sticker is not None else None,
+                    "net_1000": round(1000.0 * (interest - fee - amt_npa) / disb, 1)
+                                if ok and disb else None,
+                }
+                if per_loan:
+                    cell["loan_med"] = round(statistics.median(per_loan), 1)
+                    cell["loan_mean"] = round(sum(per_loan) / len(per_loan), 1)
+                if cell["xirr_all"] is not None and cell["xirr_ok"] is not None:
+                    cell["drag"] = round(cell["xirr_ok"] - cell["xirr_all"], 1)
+                cells["%d|%s" % (t, lab)] = cell
+        return cells
+
+    slices_out = {}
+    for key in ATLAS_SLICES:
+        pool = pools[key]
+        xa = _pool_xirr(pool)
+        xo = _pool_xirr(pool, closed_only=True)
+        slices_out[key] = {
+            "label": {"ALL": "Whole book", "2025": "Originated 2025",
+                      "2026": "Originated 2026"}[key],
+            "totals": {
+                "matured": len(pool),
+                "npa": sum(1 for l in pool if l["status"] == "NPA"),
+                "disb": round(sum(l["amount"] or 0 for l in pool), 2),
+                "interest": round(sum(l["interest_received"] or 0 for l in pool), 2),
+                "fee": round(sum(l["platform_fee"] or 0 for l in pool), 2),
+                "npa_amt": round(sum(l["npa_amount"] or 0 for l in pool if l["status"] == "NPA"), 2),
+                "xirr_all": xa, "xirr_ok": xo,
+            },
+            "cells": _bucket_cells(pool),
+        }
+
+    return {
+        "band_labels": [lab for (_lo, _hi, lab) in ATLAS_BANDS],
+        "tenures": TENURES,
+        "slices": slices_out,
+        "min_evidence": MIN_EV,
+        "note": "buckets = tenure × LenDenClub score in 10-point bands (700-709 … 790-799, 800+); "
+                "matured = CLOSED + NPA loans (active loans can still default); xirr_all = money-weighted "
+                "net XIRR incl. every default and fee (same even-EMI convention as xirr_returns); "
+                "xirr_ok = same pool minus its NPAs (upper bound); drag = xirr_ok − xirr_all; per-loan "
+                "figures annualize each loan's (received − amount − fee) by 12/tenure, losses capped at "
+                "−100%/yr (a total loss of principal is at most −100%/yr); cells with < 5 matured loans "
+                "report counts only",
+    }

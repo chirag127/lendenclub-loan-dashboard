@@ -47,6 +47,7 @@ def main():
         "interest_collection_rates": insights.interest_collection_rates(loans),
         "npa_by_year": insights.npa_by_year(loans),
         "vintage": insights.vintage(loans, summary.get("to_date")),
+        "xirr_atlas": insights.xirr_atlas(loans),
         "xirr_returns": insights.xirr_returns(loans),
         "xirr_picks": insights.xirr_picks(loans),
         "active_xirr": insights.active_xirr(loans),

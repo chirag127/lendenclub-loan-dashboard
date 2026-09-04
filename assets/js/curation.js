@@ -1,7 +1,7 @@
 /* ============================================================
  * curation.js — DECISION VIEW
- * Rebuilds SECTIONS from the registry into the 8-section decision flow and the curated render set
- * (currently 72 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
+ * Rebuilds SECTIONS from the registry into the 9-section decision flow and the curated render set
+ * (currently 114 charts + panels/tables — NOT a fixed cap: add a chart id to a group's ids and it
  * renders, remove one and it disappears). Runs after all chart files; its id lists are the single
  * source of truth for what shows.
  * ------------------------------------------------------------
@@ -10,8 +10,8 @@
  * ============================================================ */
 
 /* ============ DECISION VIEW — the curated set that answers "which loans should I fund?" ============
-   All 100 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
-   decision flow: glance -> supply -> returns -> risk -> NPA-by-year -> vintage -> cashflow/watch-outs -> verdict. The count is not
+   All 142 chart definitions stay in the codebase (nothing is deleted); the ones listed below render, in a
+   decision flow: glance -> supply -> returns -> risk -> XIRR-atlas -> NPA-by-year -> vintage -> cashflow/watch-outs -> verdict. The count is not
    fixed at 50 — more charts and other forms (gauges, tables, matrices) are added by listing them here.
    Everything shown nets out fees + NPAs or feeds the risk/returns math behind the picks. */
 (function curateDecisionView() {
@@ -40,6 +40,11 @@
       ids: ["r1", "r2", "r3", "r4", "r5", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9"],
       guardrails: true,
       riskMatrix: true,
+    },
+    {
+      name: "The net-XIRR atlas — 42 heatmaps of the fine buckets",
+      sub: "One grid, 42 ways to read it: every tenure (2 → 12 mo) × LenDenClub score in 10-point bands (700-709 … 790-799, 800+) = up to 66 buckets — 50 of them hold matured loans, 37 have enough evidence (≥ 5 matured) to rate. The 42 heatmaps above cross 14 metrics (pooled net XIRR incl. every default and fee, repaying-loans-only XIRR, default drag, per-loan median/mean annualized net return, default & principal-loss rates over the loan's life and per year, realized fee %, sticker rate, net kept per ₹1,000, plus matured/NPA evidence) with three slices (whole book, 2025 vintage, 2026 vintage). Read a metric, then compare it across the two years to see whether a bucket is getting better or worse. Whole book: bucket maps need full history, so these do not react to the month filter.",
+      ids: [...(window.ATLAS_CHART_IDS || [])],
     },
     {
       name: "NPA by origination year — tenure-level vs annualized",

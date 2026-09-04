@@ -8,7 +8,7 @@
  * Load order is fixed in index.html; see assets/js/README too.
  * ============================================================ */
 
-/* LenDenClub Loan Analytics Dashboard — curated decision view (of 97 defined), Apache ECharts */
+/* LenDenClub Loan Analytics Dashboard — curated decision view (of 142 defined), Apache ECharts */
 "use strict";
 
 /* normalize ECharts tooltip params: always work on a non-empty array */

@@ -280,6 +280,30 @@ def run_audit(loans, summary, stats):
         f"{mat_all - mat_in} matured loans sit in cohorts with <10 matured and are excluded by design",
         "PASS" if mat_in <= mat_all and disb_in <= disb_all + 1 else "FAIL", mat_in, mat_all))
 
+    # ---- W-series: fine-bucket net-XIRR atlas ----
+    from .insights import xirr_atlas
+    atl = xirr_atlas(loans)
+    allc = atl["slices"]["ALL"]["cells"]
+    at_m = sum(c["matured"] for c in allc.values())
+    at_n = sum(c["npa"] for c in allc.values())
+    at_disb = round(sum(c["disb"] for c in allc.values()), 2)
+    exp_m = sum(1 for l in funded if l["status"] in ("CLOSED", "NPA"))
+    exp_disb = round(sum(l["amount"] or 0 for l in funded if l["status"] in ("CLOSED", "NPA")), 2)
+    checks.append(_check(
+        "W1", "XIRR-atlas buckets cover the matured book",
+        f"{len(allc)} non-empty tenure×score buckets sum to {at_m} of {exp_m} matured loans "
+        f"(₹{at_disb:,.2f} of ₹{exp_disb:,.2f}), {at_n} NPA",
+        "PASS" if at_m == exp_m and at_n == stats["npa_loans"] and abs(at_disb - exp_disb) <= 1 else "FAIL",
+        at_m, exp_m))
+    wild = [f"{c['t']}mo×{c['band']}" for c in allc.values()
+            if c["xirr_all"] is not None and not (-100 <= c["xirr_all"] <= 300)]
+    checks.append(_check(
+        "W2", "XIRR-atlas rates are plausible and evidence-gated",
+        f"{sum(1 for c in allc.values() if c['xirr_all'] is not None)} cells with ≥ {atl['min_evidence']} "
+        f"matured loans report XIRR; {len(wild)} outside −100…300%/yr" if not wild else
+        f"cells outside −100…300%/yr: {wild}",
+        "PASS" if not wild else "FAIL", len(wild), 0))
+
     # ---- verdict ----
     fails = [c for c in checks if c["status"] == "FAIL"]
     infos = [c for c in checks if c["status"] == "INFO"]
